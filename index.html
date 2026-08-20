@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ibuki - Your Intelligent Multi-Source Digital Notebook</title>
+  <meta name="description"
+    content="Ibuki acts as a digital notebook with multiple sources of truth. Auto-classifies text, notes, and whiteboard photos into subjects and materials using LLM Vision.">
+  <link rel="stylesheet" href="style.css">
+  <!-- Markdown parser library -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <!-- Supabase JS Client -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+
+<body class="auth-hidden">
+  <!-- Auth Overlay -->
+  <div id="auth-overlay" class="auth-overlay hidden">
+    <div class="auth-card">
+      <div class="auth-header">
+        <div class="logo-icon">I</div>
+        <h2>Welcome to Ibuki</h2>
+        <p>Your Intelligent Multi-Source Digital Notebook</p>
+      </div>
+
+      <div class="auth-tabs">
+        <button class="auth-tab active" onclick="switchAuthTab('login')">Login</button>
+        <button class="auth-tab" onclick="switchAuthTab('signup')">Sign Up</button>
+      </div>
+
+      <form id="auth-form" class="auth-form">
+        <div class="input-group">
+          <label>Email Address</label>
+          <input type="email" id="auth-email" placeholder="email@example.com" required>
+        </div>
+        <div class="input-group">
+          <label>Password</label>
+          <input type="password" id="auth-password" placeholder="••••••••" required>
+        </div>
+        <button type="submit" id="auth-submit-btn" class="btn-auth-submit">Login</button>
+      </form>
+      <div id="auth-error" class="auth-error hidden"></div>
+    </div>
+  </div>
+
+  <div class="app-container">
+
+    <div class="app-container">
+
+      <!-- LEFT SIDEBAR -->
+      <aside class="sidebar">
+        <div class="logo-container">
+          <div class="logo-icon">I</div>
+          <span class="logo-text">Ibuki</span>
+        </div>
+        <button id="btn-logout" class="btn-logout-sidebar" title="Logout">
+          <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" style="width:18px; height:18px;">
+            <path stroke-linecap="round" stroke-linejoin="round"
+              d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+          </svg>
+          Logout
+        </button>
+
+        <button class="btn-new-notebook" id="btn-sidebar-create">
+          <svg fill="none" style="height:24px" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+          </svg>
+          New Notebook
+        </button>
+
+        <!-- Main Navigation -->
+        <nav class="nav-section">
+          <div class="nav-section-title">Navigation</div>
+          <ul class="nav-list">
+            <li>
+              <div class="nav-item active" id="nav-dashboard">
+                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+                </svg>
+                Dashboard
+              </div>
+            </li>
+            <li>
+              <div class="nav-item" id="nav-global-chat">
+                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
+                </svg>
+                AI Assistant Chat
+              </div>
+            </li>
+            <li>
+              <div class="nav-item" id="nav-settings">
+                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.43l-1.003.828c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.43l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 010-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0Z" />
+                </svg>
+                API Configuration
+              </div>
+            </li>
+          </ul>
+        </nav>
+
+        <!-- Subjects Navigation Dynamic -->
+        <nav class="nav-section">
+          <div class="nav-section-title">Subjects</div>
+          <ul class="nav-list category-list" id="sidebar-subjects">
+            <!-- Populated by JS -->
+            <li class="text-center mt-1"><span style="font-size:0.75rem; color:var(--text-muted);">No subjects
+                found</span></li>
+          </ul>
+        </nav>
+
+        <!-- Materials Navigation Dynamic -->
+        <nav class="nav-section">
+          <div class="nav-section-title">Topics / Materials</div>
+          <ul class="nav-list category-list" id="sidebar-materials">
+            <!-- Populated by JS -->
+            <li class="text-center mt-1"><span style="font-size:0.75rem; color:var(--text-muted);">No materials
+                found</span></li>
+          </ul>
+        </nav>
+
+        <!-- Status Indicator -->
+        <div class="sidebar-footer">
+          <div class="connection-status" id="api-status-badge">
+            <div class="status-dot demo" id="api-status-dot"></div>
+            <span id="api-status-text">Demo Mode Active</span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- MAIN WINDOW -->
+      <main class="main-content">
+
+        <!-- TOP NAVIGATION BAR -->
+        <header class="main-header">
+          <div class="header-search">
+            <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round"
+                d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.604 10.604z" />
+            </svg>
+            <input type="text" id="global-search" placeholder="Search notebooks, subjects, or concepts...">
+          </div>
+          <div class="header-user-info" style="font-size:0.85rem; font-weight:600; color:var(--text-secondary);">
+            Ibuki Workspace v1.0
+          </div>
+        </header>
+
+        <!-- VIEW 1: DASHBOARD -->
+        <section class="view-container" id="dashboard-view">
+          <div class="dashboard-hero">
+            <h1 id="welcome-title">Your Smart Study Brain</h1>
+            <p>Ibuki aggregates whiteboard photos, textbook snippets, and notes. Upload multiple sources, classify
+              topics,
+              and query your study brain.</p>
+          </div>
+
+          <!-- Stat Widgets -->
+          <div class="stats-grid">
+            <div class="stat-card">
+              <div class="stat-icon">📚</div>
+              <div class="stat-info">
+                <h3 id="stat-notebook-count">0</h3>
+                <p>Total Notebooks</p>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon teal">📁</div>
+              <div class="stat-info">
+                <h3 id="stat-subject-count">0</h3>
+                <p>Subjects</p>
+              </div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-icon purple">🧠</div>
+              <div class="stat-info">
+                <h3 id="stat-material-count">0</h3>
+                <p>Material Topics</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Subjects Grid Section -->
+          <div class="section-header">
+            <h2>Browse Subjects</h2>
+          </div>
+          <div class="subjects-grid" id="dashboard-subjects-grid">
+            <!-- Populated by JS -->
+          </div>
+
+          <!-- Recent Notebooks Section -->
+          <div class="section-header">
+            <h2>Recent Study Notebooks</h2>
+            <button class="btn-chat-subject" id="btn-dashboard-new">Create New</button>
+          </div>
+
+          <div class="notebooks-grid" id="dashboard-notebooks-grid">
+            <!-- Populated by JS -->
+          </div>
+        </section>
+
+        <!-- VIEW 2: CREATE NOTEBOOK -->
+        <section class="view-container hidden" id="creator-view">
+          <div class="creator-container">
+
+            <!-- Source Upload Panel -->
+            <div class="creator-panel">
+              <h2>Step 1: Upload Lecture Sources</h2>
+              <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:1rem;">Add photos of whiteboards,
+                handwritten notes, or type key concepts below.</p>
+
+              <div class="input-group">
+                <label>Draft / Notes Text</label>
+                <textarea id="creator-text-input" rows="5"
+                  placeholder="Paste typed summaries, notes, or lecture transcript here..."></textarea>
+              </div>
+
+              <!-- Drag & Drop Zone -->
+              <div class="drag-zone" id="creator-dropzone">
+                <div class="drag-icon">📸</div>
+                <div class="drag-text">
+                  Drag & drop whiteboard captures or notes, or <span>browse files</span>
+                </div>
+                <input type="file" id="creator-file-input" multiple accept="image/*" style="display:none;">
+              </div>
+
+              <!-- Previews -->
+              <div class="sources-preview-list" id="creator-sources-list">
+                <!-- Populated dynamically by JS -->
+              </div>
+
+              <button class="btn-analyze" id="btn-creator-analyze" disabled>
+                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                  style="width:20px; height:20px;">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M9.813 15.904L9 21l8.904-4.452L21 21l-1.187-5.096A9.75 9.75 0 109.813 15.904z" />
+                </svg>
+                Analyze & Auto-Classify with AI
+              </button>
+            </div>
+
+            <!-- Classification & Override Panel -->
+            <div class="creator-panel">
+              <h2>Step 2: AI Classification & Details</h2>
+
+              <div id="creator-loading-panel" class="skeleton-loader hidden">
+                <div class="skeleton-text header"></div>
+                <div class="skeleton-text paragraph"></div>
+                <div class="skeleton-text paragraph"></div>
+                <div class="skeleton-text paragraph half"></div>
+                <p style="text-align:center; font-size:0.85rem; color:var(--text-secondary); margin-top:1rem;">AI is
+                  transcribing whiteboards and classifying topics...</p>
+              </div>
+
+              <div id="creator-result-form" class="">
+                <p style="font-size:0.85rem; color:var(--text-secondary); margin-bottom:1.5rem;">Review the
+                  classification
+                  details and adjust anything the AI got wrong.</p>
+
+                <div class="input-group">
+                  <label for="result-title">Notebook Title</label>
+                  <input type="text" id="result-title" placeholder="e.g. Limits and Continuity Lecture 1">
+                </div>
+
+                <div class="input-group">
+                  <label for="result-subject">Subject</label>
+                  <input type="text" id="result-subject" placeholder="e.g. Mathematics" list="subjects-datalist">
+                  <datalist id="subjects-datalist">
+                    <option value="Mathematics">
+                    <option value="Biology">
+                    <option value="Chemistry">
+                    <option value="Physics">
+                    <option value="Computer Science">
+                    <option value="History">
+                  </datalist>
+                </div>
+
+                <div class="input-group">
+                  <label for="result-material">Topic / Material</label>
+                  <input type="text" id="result-material" placeholder="e.g. Calculus" list="materials-datalist">
+                  <datalist id="materials-datalist">
+                    <!-- Dynamically populated -->
+                  </datalist>
+                </div>
+
+                <div class="input-group">
+                  <label>Inferred OCR Transcriptions & Synthesis Context</label>
+                  <textarea id="result-transcription" rows="4"
+                    placeholder="Full transcription will appear here..."></textarea>
+                </div>
+
+                <div class="input-group">
+                  <label>Study Guide Summary (Markdown supported)</label>
+                  <textarea id="result-summary" rows="6"
+                    placeholder="Markdown study summary will appear here..."></textarea>
+                </div>
+
+                <button class="btn-save-notebook" id="btn-creator-save">
+                  <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                    style="width:20px; height:20px;">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Save Notebook
+                </button>
+              </div>
+
+            </div>
+
+          </div>
+        </section>
+
+        <!-- VIEW 3: NOTEBOOK DETAILS VIEW -->
+        <section class="view-container hidden" id="notebook-view">
+          <div class="section-header" style="margin-bottom:1.5rem;">
+            <div>
+              <div style="display:flex; gap:0.5rem; margin-bottom:0.5rem;">
+                <span class="tag tag-subject" id="nb-detail-subject">Subject</span>
+                <span class="tag tag-material" id="nb-detail-material">Topic</span>
+              </div>
+              <h1 id="nb-detail-title" style="font-family:var(--font-heading); color:white; font-size:1.8rem;">Notebook
+                Title</h1>
+              <p style="font-size:0.8rem; color:var(--text-muted); margin-top:0.25rem;" id="nb-detail-date">Created on:
+                ...</p>
+            </div>
+            <div style="display:flex; gap:0.75rem;">
+              <button class="btn-chat-subject" style="background:#ef4444; color:white; border-color:transparent;"
+                id="btn-delete-notebook">Delete Notebook</button>
+              <button class="btn-chat-subject" id="btn-nb-back-dashboard">Back to Dashboard</button>
+            </div>
+          </div>
+
+          <div class="detail-layout">
+            <!-- Notebook Tabs Panel (Left) -->
+            <div class="notebook-content-panel">
+              <div class="tabs-header">
+                <button class="tab-btn active" data-tab="summary">Study Guide Summary</button>
+                <button class="tab-btn" data-tab="sources">Sources Gallery</button>
+                <button class="tab-btn" data-tab="transcript">OCR Transcript</button>
+              </div>
+
+              <!-- Summary Tab Content -->
+              <div class="tab-content" id="tab-summary-content">
+                <div class="summary-container" id="markdown-summary-render">
+                  <!-- Rendered Markdown goes here -->
+                </div>
+              </div>
+
+              <!-- Sources Gallery Tab Content -->
+              <div class="tab-content hidden" id="tab-sources-content">
+                <div class="sources-gallery" id="nb-detail-gallery">
+                  <!-- Clickable images and text files -->
+                </div>
+              </div>
+
+              <!-- Transcript Tab Content -->
+              <div class="tab-content hidden" id="tab-transcript-content">
+                <div class="transcription-container" id="nb-detail-transcription">
+                  <!-- Full text OCR transcription text -->
+                </div>
+              </div>
+            </div>
+
+            <!-- Chat Sidebar Panel (Right) -->
+            <div class="chat-panel">
+              <div class="chat-header">
+                <div class="chat-header-info">
+                  <h3>Notebook Assistant</h3>
+                  <p id="chat-scope-label">Chatting with context from this notebook</p>
+                </div>
+                <button class="btn-clear-chat" id="btn-clear-notebook-chat" title="Clear Chat History">
+                  <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                    style="width:18px; height:18px;">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
+
+              <div class="chat-messages" id="notebook-chat-messages">
+                <!-- Message items populated dynamically by JS -->
+              </div>
+
+              <div class="chat-input-container">
+                <form class="chat-input-form" id="notebook-chat-form">
+                  <input type="text" id="notebook-chat-input" placeholder="Ask questions about this lesson..."
+                    autocomplete="off">
+                  <button type="submit" class="btn-send-message">
+                    <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"
+                      style="width:18px; height:18px;">
+                      <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                    </svg>
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- VIEW 4: CATEGORY (SUBJECT/MATERIAL) CHAT ASSISTANT -->
+        <section class="view-container hidden" id="chat-view">
+          <div class="section-header" style="margin-bottom:1.5rem;">
+            <div>
+              <h1 style="font-family:var(--font-heading); color:white; font-size:1.8rem;" id="global-chat-title">Subject
+                AI Chat Assistant</h1>
+              <p style="font-size:0.85rem; color:var(--text-secondary); margin-top:0.25rem;"
+                id="global-chat-description">
+                Ask questions aggregated across all lessons under this subject.</p>
+            </div>
+            <button class="btn-chat-subject" id="btn-global-chat-back">Back to Dashboard</button>
+          </div>
+
+          <div class="chat-panel" style="max-width:800px; margin: 0 auto; height:calc(100vh - 220px);">
+            <div class="chat-header">
+              <div class="chat-header-info">
+                <h3 id="panel-chat-scope-title">Global Assistant</h3>
+                <p id="panel-chat-scope-subtitle">Consolidating lessons under this topic</p>
+              </div>
+              <button class="btn-clear-chat" id="btn-clear-global-chat" title="Clear Chat History">
+                <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"
+                  style="width:18px; height:18px;">
+                  <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            </div>
+
+            <div class="chat-messages" id="global-chat-messages">
+              <!-- Dynamic chats -->
+            </div>
+
+            <div class="chat-input-container">
+              <form class="chat-input-form" id="global-chat-form">
+                <input type="text" id="global-chat-input" placeholder="Ask questions about this subject or material..."
+                  autocomplete="off">
+                <button type="submit" class="btn-send-message">
+                  <svg fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"
+                    style="width:18px; height:18px;">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                      d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+                  </svg>
+                </button>
+              </form>
+            </div>
+          </div>
+        </section>
+
+        <!-- VIEW 5: SETTINGS -->
+        <section class="view-container hidden" id="settings-view">
+          <div class="settings-container">
+            <div class="settings-card">
+
+              <div class="settings-header">
+                <h2>OpenAI Compatible API Config</h2>
+                <p>Configure Ibuki to talk to local (Ollama, LM Studio) or global LLM APIs (OpenAI, OpenRouter, Gemini,
+                  etc.).</p>
+              </div>
+
+              <!-- Demo Mode Switch -->
+              <div class="settings-toggle-group">
+                <div class="settings-toggle-info">
+                  <h4>Simulated Demo Mode</h4>
+                  <p>Run Ibuki completely offline with simulated AI outputs. Perfect for trials!</p>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="settings-demo-mode" checked>
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <!-- Target Language Config -->
+              <div class="input-group" style="margin-bottom: 1.5rem;">
+                <label for="settings-language">Target Parsing & Study Language</label>
+                <select id="settings-language">
+                  <option value="English">English</option>
+                  <option value="Indonesian">Bahasa Indonesia</option>
+                  <option value="Japanese">日本語 (Japanese)</option>
+                  <option value="Spanish">Español (Spanish)</option>
+                  <option value="French">Français (French)</option>
+                </select>
+                <p style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem;">
+                  All AI transcriptions, syntheses, auto-classifications, and chatbot answers will be generated in this
+                  language.
+                </p>
+              </div>
+
+              <!-- Inputs (Hidden/disabled if demo mode is enabled) -->
+              <div id="settings-api-fields">
+                <div class="input-group">
+                  <label for="settings-base-url">API Base URL</label>
+                  <input type="text" id="settings-base-url" placeholder="https://api.openai.com/v1">
+                  <p style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem;">
+                    For Ollama, use: <code>http://localhost:11434/v1</code>. For LM Studio, use:
+                    <code>http://localhost:1234/v1</code>.
+                  </p>
+                </div>
+
+                <div class="input-group">
+                  <label for="settings-api-key">API Key</label>
+                  <input type="password" id="settings-api-key" placeholder="sk-...">
+                </div>
+
+                <div class="input-group">
+                  <label for="settings-chat-model">Chat Model Name</label>
+                  <input type="text" id="settings-chat-model" placeholder="gpt-4o-mini">
+                </div>
+
+                <div class="input-group">
+                  <label for="settings-vision-model">Vision / OCR Model Name</label>
+                  <input type="text" id="settings-vision-model" placeholder="gpt-4o">
+                  <p style="font-size:0.75rem; color:var(--text-muted); margin-top:0.25rem;">
+                    Make sure this model supports vision/images (like <code>gpt-4o</code>, <code>llava</code>,
+                    <code>gemini-1.5-flash</code>).
+                  </p>
+                </div>
+              </div>
+
+              <div class="alert-message" id="settings-alert"></div>
+
+              <div class="settings-actions">
+                <button class="btn-settings-test" id="btn-settings-test">Test Connection</button>
+                <button class="btn-settings-save" id="btn-settings-save">Save Settings</button>
+              </div>
+
+            </div>
+          </div>
+        </section>
+
+      </main>
+
+    </div>
+
+    <!-- MEDIA MODAL VIEWER -->
+    <div class="media-modal" id="media-modal">
+      <div class="media-modal-content">
+        <button class="btn-close-modal" id="btn-close-media-modal">✕ Close</button>
+        <img src="" alt="Full Screen Source Preview" class="media-modal-img" id="media-modal-img">
+      </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="supabase-config.js"></script>
+    <script src="auth.js"></script>
+    <script src="db.js"></script>
+    <script src="ai.js"></script>
+    <script src="app.js"></script>
+</body>
+
+</html>
