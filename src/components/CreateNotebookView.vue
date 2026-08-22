@@ -245,7 +245,14 @@ const analyzeSources = async () => {
     const result = await aiService.analyzeSources(sources.value)
     notebook.value = {
       ...result,
-      sources: sources.value.map(s => ({ name: s.name, type: s.type }))
+      // Persist extracted text for text/PDF sources so citations can be
+      // highlighted later. Image base64 is intentionally not persisted
+      // (the storage URL is used instead).
+      sources: sources.value.map(s => (
+        s.type === 'image'
+          ? { name: s.name, type: s.type }
+          : { name: s.name, type: s.type, content: s.content }
+      ))
     }
    } catch (e) {
      let errorMessage = 'AI Analysis failed: ' + e.message;

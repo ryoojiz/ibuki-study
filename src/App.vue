@@ -19,13 +19,17 @@
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
             Dashboard
           </li>
+          <li @click="openGlobalChat" :class="['nav-item', { active: currentView === 'chat' && chatMode === 'global' }]">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+            Global Chat
+          </li>
         </ul>
       </div>
 
       <div class="nav-section">
         <div class="nav-section-title">Subjects</div>
         <ul class="nav-list category-list">
-          <li v-for="subject in subjects" :key="subject" @click="setView('subject', subject)" :class="['nav-item', { active: currentView === 'subject' && activeSubject === subject }]">
+          <li v-for="subject in subjects" :key="subject" @click="openSubjectChat(subject)" :class="['nav-item', { active: currentView === 'chat' && chatMode === 'subject' && activeSubject === subject }]">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path></svg>
             {{ subject }}
           </li>
@@ -66,10 +70,11 @@
       </header>
 
        <div class="view-container">
-         <DashboardView v-if="currentView === 'dashboard'" :searchQuery="searchQuery" :userName="userName" @selectNotebook="openNotebook" />
-         <CreateNotebookView v-if="currentView === 'create'" @notebookCreated="setView('dashboard')" />
-         <NotebookDetailView v-if="currentView === 'detail'" :notebookId="activeNotebookId" @openChat="openChat" />
-         <ChatView v-if="currentView === 'chat'" :notebookId="activeNotebookId" @back="setView('detail')" />
+         <DashboardView v-if="currentView === 'dashboard'" :searchQuery="searchQuery" :userName="userName" @selectNotebook="openNotebook" @openChat="handleDashboardOpenChat" />
+         <CreateNotebookView v-if="currentView === 'create'" @notebookCreated="setView('dashboard'); refreshSubjects()" />
+         <NotebookDetailView v-if="currentView === 'detail'" :key="'nb-' + activeNotebookId" :notebookId="activeNotebookId" @openChat="openChat" @back="setView('dashboard')" @notebookDeleted="handleNotebookDeleted" />
+         <!-- Keyed by chat scope so switching chats (global/subject/notebook) recreates the component and reloads its history -->
+         <ChatView v-if="currentView === 'chat'" :key="(chatMode || 'notebook') + '|' + (activeSubject || '') + '|' + (activeNotebookId || '')" :notebookId="chatMode ? null : activeNotebookId" :subject="chatMode === 'subject' ? activeSubject : null" :globalMode="chatMode === 'global'" @back="handleChatBack" />
          <SettingsView v-if="currentView === 'settings'" />
        </div>
     </main>
@@ -131,6 +136,9 @@ const toggleProfileMenu = () => {
   isProfileMenuOpen.value = !isProfileMenuOpen.value
 }
 
+// Chat mode: null = notebook chat, 'subject' = subject chat, 'global' = global chat
+const chatMode = ref(null)
+
 const setView = (view, param = null) => {
   currentView.value = view
   if (view === 'subject') {
@@ -139,13 +147,50 @@ const setView = (view, param = null) => {
 }
 
 const openNotebook = (id) => {
+  chatMode.value = null
   activeNotebookId.value = id
   currentView.value = 'detail'
 }
 
 const openChat = (id) => {
+  chatMode.value = null
   activeNotebookId.value = id
   currentView.value = 'chat'
+}
+
+const openGlobalChat = () => {
+  chatMode.value = 'global'
+  activeNotebookId.value = null
+  activeSubject.value = null
+  currentView.value = 'chat'
+}
+
+const openSubjectChat = (subject) => {
+  chatMode.value = 'subject'
+  activeSubject.value = subject
+  activeNotebookId.value = null
+  currentView.value = 'chat'
+}
+
+const handleDashboardOpenChat = (notebookId, subject) => {
+  if (subject) {
+    openSubjectChat(subject)
+  } else {
+    openGlobalChat()
+  }
+}
+
+const handleChatBack = () => {
+  if (chatMode.value) {
+    setView('dashboard')
+  } else {
+    setView('detail')
+  }
+}
+
+const handleNotebookDeleted = async () => {
+  await refreshSubjects()
+  currentView.value = 'dashboard'
 }
 
 const refreshSubjects = async () => {

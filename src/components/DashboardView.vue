@@ -39,7 +39,7 @@
       <h2>Your Subjects</h2>
     </div>
     <div class="subjects-grid">
-      <div v-for="subject in filteredSubjects" :key="subject" class="subject-card" @click="handleSubjectClick(subject)">
+      <div v-for="subject in filteredSubjects" :key="subject" class="subject-card" @click="$emit('openChat', null, subject)">
         <h3>{{ subject }}</h3>
         <p>Explore all notebooks and AI chats for this subject.</p>
         <div class="subject-meta">
@@ -131,10 +131,6 @@ const filteredNotebooks = computed(() => {
 
 const getNotebookCount = (subject) => {
   return notebooks.value.filter(n => n.subject === subject).length
-}
-
-const handleSubjectClick = (subject) => {
-  // Logic handled by btn-chat-subject and emit
 }
 
 const formatDate = (dateStr) => {
