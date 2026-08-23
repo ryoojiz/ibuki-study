@@ -11,6 +11,22 @@
       </button>
     </div>
 
+    <div class="tabs-header subject-tabs">
+      <button
+        @click="activeTab = 'notebooks'"
+        :class="['tab-btn', { active: activeTab === 'notebooks' }]"
+      >
+        {{ t('subject.tabNotebooks') }}
+      </button>
+      <button
+        @click="activeTab = 'quiz'"
+        :class="['tab-btn', { active: activeTab === 'quiz' }]"
+      >
+        {{ t('subject.tabQuiz') }}
+      </button>
+    </div>
+
+    <template v-if="activeTab === 'notebooks'">
     <div class="stats-grid">
       <template v-if="loading">
         <div v-for="i in 3" :key="i" class="stat-card skeleton">
@@ -89,6 +105,11 @@
     </div>
 
     <!-- Future subject sections (e.g., Assignments) can be added here as additional section blocks -->
+    </template>
+
+    <div v-else-if="activeTab === 'quiz'" class="subject-quiz-container">
+      <QuizPanel :subject="subject" />
+    </div>
   </div>
 </template>
 
@@ -96,6 +117,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { dbService } from '../services/db'
 import { i18n } from '../services/i18n'
+import QuizPanel from './QuizPanel.vue'
 
 const t = i18n.t
 const props = defineProps(['subject'])
@@ -103,6 +125,7 @@ const emit = defineEmits(['selectNotebook', 'openChat'])
 
 const loading = ref(true)
 const notebooks = ref([])
+const activeTab = ref('notebooks')
 
 onMounted(async () => {
   await loadData()
@@ -143,5 +166,11 @@ const formatDate = (dateStr) => {
 .hero-content h1 {
   font-size: 2rem;
   margin-bottom: 0.5rem;
+}
+.subject-tabs {
+  margin-bottom: 1.5rem;
+}
+.subject-quiz-container {
+  max-width: 860px;
 }
 </style>

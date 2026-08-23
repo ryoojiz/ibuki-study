@@ -2,10 +2,10 @@ import { citationsService } from './citations'
 
 export const aiService = {
   config: {
-    apiKey: 'sk-u72MZX2E3geYa8cDHzJ0SLyn54X61zCXi0OfR0VFb84lgUEz',
+    apiKey: 'sk-DzSd37lsyqPZZT0Lb1LZ0M1Q9YGRTh9Zvsdo3RJ20HZo9339',
     baseUrl: 'https://router.juan.web.id/v1',
-    chatModel: 'muse-glimmer',
-    visionModel: 'gemma-4-31b-it',
+    chatModel: 'gemini-3.5-flash-lite',
+    visionModel: 'gemini-3.5-flash-lite',
     useDemoMode: false,
     language: 'English'
   },
@@ -73,7 +73,7 @@ Analyze the provided sources (which can include handwritten notes, printed text,
 Perform the following actions:
 1. OCR Transcription: Transcribe the contents of any images/whiteboards. Transcribe ALL formulas, text, diagrams, and bullet points.
 2. Synthesis: Merge information from all sources.
-3. Classification: Classify the notebook into exactly ONE "Subject" (e.g. Mathematics, Biology, Chemistry, Computer Science, Literature, History, Art) and ONE specific "Material" topic (e.g. "Linear Algebra", "Cell Division", "Acid-Base Reactions", "Data Structures"). Keep subject names simple, capital-case, and topic names descriptive.
+3. Classification: Place the notebook into a hierarchical "material_path" - an ordered array of category names from broadest to most specific (e.g. ["Mathematics", "Calculus", "Limits"] or ["Biology", "Cell Division"]). The FIRST element is the subject root (keep it simple and capital-case, e.g. Mathematics, Biology, Chemistry, Computer Science). Use 2-4 levels total; the last element is the specific topic (e.g. "Linear Algebra", "Acid-Base Reactions"). Reuse natural parent categories so related notebooks group together.
 4. Summary: Write a premium study guide in Markdown. Include headers, bullet points, key terms, definitions, and equations if applicable. Make it readable, detailed, and highly organized.
 5. Inferred Title: Create a concise, relevant title for this notebook.
 
@@ -97,8 +97,9 @@ LANGUAGE REQUIREMENT: You MUST generate all text content ("title", "subject", "m
 You must respond ONLY with a valid JSON object matching this schema:
 {
   "title": "Concise inferred title for the notebook",
-  "subject": "Single word or short phrase subject, e.g. Mathematics",
-  "material": "Specific topic name, e.g. Differential Equations",
+  "subject": "Single word or short phrase subject, e.g. Mathematics (must equal material_path[0])",
+  "material": "Specific topic name, e.g. Differential Equations (must equal the LAST element of material_path)",
+  "material_path": ["Subject root", "Parent category", "Specific topic"],
   "transcription": "Complete transcription/OCR of any whiteboard images or notes with citations",
   "summary": "Full comprehensive summary and study guide formatted in Markdown. Use headers, bullet points, bold text for key concepts, and include inline [[N|short verbatim quote]] citations throughout."
 }
@@ -175,6 +176,181 @@ Do not write any markdown code wrapper or extra text outside the JSON object. Re
     }
   },
 
+  async generateFlashcards(contextText, focus = 'general', count = 10) {
+    if (this.config.useDemoMode) {
+      return this.generateDemoFlashcards(count);
+    }
+
+    const systemPrompt = `You are "Ibuki", an advanced study assistant. Your task is to generate a set of high-quality study flashcards based on the provided context.
+    
+    REQUIREMENTS:
+    1. Content: Create exactly ${count} flashcards.
+    2. Focus: Focus on ${focus === 'general' ? 'the most important key concepts, definitions, and formulas' : focus}.
+    3. Format: Each flashcard must have a clear "question" and a concise but comprehensive "answer".
+    4. Style: Questions should be challenging but fair. Answers should be formatted in Markdown (use bold for key terms, $...$ for math).
+    5. Language: You MUST generate all content in the following language: ${this.config.language}.
+    
+    You must respond ONLY with a valid JSON array of objects matching this schema:
+    [
+      { "question": "The question text", "answer": "The answer text" },
+      ...
+    ]
+    Do not write any markdown code wrapper or extra text outside the JSON array. Return the JSON array directly.`;
+
+    try {
+      const response = await fetch(`${this.config.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.config.apiKey}`
+        },
+        body: JSON.stringify({
+          model: this.config.chatModel,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: `Context:\n${contextText}` }
+          ],
+          response_format: { type: 'json_object' }, // Note: some models might need this removed if they return array directly, but muse-glimmer usually handles json_object for arrays if prompted
+          stream: false
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API Request failed with status ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+      const rawText = data.choices[0].message.content.trim();
+      
+      // The model might wrap the array in an object like { "flashcards": [...] } if response_format is 'json_object'
+      const parsed = this.parseJSONResponse(rawText);
+      if (Array.isArray(parsed)) return parsed;
+      if (parsed.flashcards && Array.isArray(parsed.flashcards)) return parsed.flashcards;
+      if (parsed.cards && Array.isArray(parsed.cards)) return parsed.cards;
+      
+      throw new Error('AI failed to return a valid list of flashcards.');
+    } catch (error) {
+      console.error('Error generating flashcards:', error);
+      throw error;
+    }
+  },
+
+  generateDemoFlashcards(count) {
+    const cards = [];
+    for (let i = 1; i <= count; i++) {
+      cards.push({
+        question: `Demo Question ${i}: What is the core concept of this topic?`,
+        answer: `This is a demo answer for card ${i}. In a real scenario, this would be extracted from your notebook content.`
+      });
+    }
+    return Promise.resolve(cards);
+  },
+
+  async generateQuiz(contextText, options = {}) {
+    const difficulty = options.difficulty || 'medium';
+    const focus = options.focus || 'general';
+    const count = options.count || 10;
+
+    if (this.config.useDemoMode) {
+      return this.generateDemoQuiz(count);
+    }
+
+    const difficultyHint =
+      difficulty === 'easy'
+        ? 'recall of fundamental definitions and basic concepts'
+        : difficulty === 'hard'
+          ? 'application, analysis, multi-step reasoning and tricky distractors'
+          : 'a balanced mix of understanding and application';
+
+    const systemPrompt = `You are "Ibuki", an advanced study assistant. Your task is to generate a high-quality multiple-choice quiz based on the provided context.
+    
+    REQUIREMENTS:
+    1. Content: Create exactly ${count} multiple-choice questions.
+    2. Difficulty: Target "${difficulty}" difficulty (${difficultyHint}).
+    3. Focus: Focus on ${focus === 'general' ? 'the most important key concepts, definitions, and formulas' : focus}.
+    4. Format: Each question must have exactly 4 answer options and exactly one correct option ("correct_index" is 0-based).
+    5. Style: Questions should be challenging but fair. Question text, options, and explanations may use Markdown ($...$ for math).
+    6. Language: You MUST generate all content in the following language: ${this.config.language}.
+    
+    You must respond ONLY with a valid JSON array of objects matching this schema:
+    [
+      { "question": "The question text", "options": ["Option A", "Option B", "Option C", "Option D"], "correct_index": 0, "explanation": "Brief explanation of why this answer is correct" },
+      ...
+    ]
+    Do not write any markdown code wrapper or extra text outside the JSON array. Return the JSON array directly.`;
+
+    try {
+      const response = await fetch(`${this.config.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.config.apiKey}`
+        },
+        body: JSON.stringify({
+          model: this.config.chatModel,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: `Context:\n${contextText}` }
+          ],
+          response_format: { type: 'json_object' }, // Some models wrap arrays in an object when this is set; handled below
+          stream: false
+        })
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API Request failed with status ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+      const rawText = data.choices[0].message.content.trim();
+
+      // The model might wrap the array in an object like { "questions": [...] } if response_format is 'json_object'
+      const parsed = this.parseJSONResponse(rawText);
+      const list = Array.isArray(parsed)
+        ? parsed
+        : (parsed.questions || parsed.quiz || parsed.items);
+
+      if (!Array.isArray(list) || list.length === 0) {
+        throw new Error('AI failed to return a valid quiz.');
+      }
+
+      // Normalize entries: ensure options is an array of strings and correct_index is a number in range
+      return list.map(q => {
+        let idx = Number(q.correct_index);
+        if (!Number.isInteger(idx) || idx < 0 || idx >= (q.options?.length || 0)) idx = 0;
+        return {
+          question: q.question || '',
+          options: Array.isArray(q.options) ? q.options.map(o => String(o)) : [],
+          correct_index: idx,
+          explanation: q.explanation || ''
+        };
+      }).filter(q => q.question && q.options.length >= 2);
+    } catch (error) {
+      console.error('Error generating quiz:', error);
+      throw error;
+    }
+  },
+
+  generateDemoQuiz(count) {
+    const questions = [];
+    for (let i = 1; i <= count; i++) {
+      questions.push({
+        question: `Demo Question ${i}: Which statement best describes the core concept covered in your notes?`,
+        options: [
+          'It applies only to isolated edge cases.',
+          'It connects the key principles explained in your material.',
+          'It contradicts the standard theory.',
+          'It is unrelated to the topic.'
+        ],
+        correct_index: 1,
+        explanation: `This is a demo explanation for question ${i}. In a real scenario, it would be derived from your notebook content.`
+      });
+    }
+    return Promise.resolve(questions);
+  },
+
   async chat(messages, contextTitle, contextType, contextText, onStream, sourceRegistry = []) {
     if (this.config.useDemoMode) {
       const reply = await this.generateDemoChatResponse(messages, contextTitle, contextType, sourceRegistry);
@@ -202,7 +378,7 @@ TOOL CALLING:
 If the user's request would benefit from a specific study tool (like generating a quiz, flashcards, or a mind map), you can suggest it using a tool call tag:
 <tool_call name="tool_name" params='{"param1": "value1"}' />
 Available tools:
-- generate_quiz: params { "difficulty": "easy|medium|hard", "focus": "specific topic" }
+- generate_quiz: params { "difficulty": "easy|medium|hard", "focus": "specific topic", "count": number }
 - generate_flashcards: params { "count": number, "focus": "specific topic" }
 - generate_summary: params { "length": "short|detailed" }
 Only use tool calls when they clearly add value to the learning process.
@@ -349,9 +525,97 @@ LANGUAGE REQUIREMENT: You MUST reply in the following language: ${this.config.la
       title: 'Auto-Analyzed Notes',
       subject: 'General Study',
       material: 'Unassigned',
+      material_path: ['General Study', 'Unassigned'],
       transcription: 'OCR transcription unavailable due to output format issue.',
       summary: `### Analysis Completed\n\nWe successfully processed your notes but could not parse the structured JSON response.\n\n**Raw output:**\n\n${text}`
     };
+  },
+
+  /**
+   * Propose a hierarchical grouping for a set of notebooks.
+   * Returns { groups: [{ path: string[], notebook_ids: string[] }] }
+   * where every provided notebook id appears in exactly one group.
+   */
+  async suggestGrouping(notebooks) {
+    if (!notebooks?.length) return { groups: [] };
+
+    if (this.config.useDemoMode) {
+      // Demo: group by existing subject -> material
+      const byKey = new Map();
+      for (const nb of notebooks) {
+        const path = [nb.subject || 'General Study', nb.material || 'Unsorted'];
+        const key = path.join(' > ');
+        if (!byKey.has(key)) byKey.set(key, { path, notebook_ids: [] });
+        byKey.get(key).notebook_ids.push(nb.id);
+      }
+      return { groups: [...byKey.values()] };
+    }
+
+    const listing = notebooks.map(nb => {
+      const snippet = (nb.summary || '').replace(/[#*`]/g, '').slice(0, 200);
+      return '- id: ' + nb.id + ' | title: "' + nb.title + '" | current placement: ' +
+        [nb.subject, nb.material].filter(Boolean).join(' > ') +
+        ' | summary: ' + snippet;
+    }).join('\n');
+
+    const systemPrompt = `You are "Ibuki", a study-organization assistant. Given a list of study notebooks, propose a clean hierarchical grouping tree.
+
+RULES:
+1. The FIRST level of every path is the SUBJECT root (broad field, capital-case, e.g. "Mathematics").
+2. Below that, group related notebooks into meaningful topics/subtopics (2-4 levels deep max).
+3. Every notebook id MUST appear in exactly one group. Do not invent ids.
+4. Prefer merging small groups into sensible parents rather than one group per notebook.
+5. Keep names concise and descriptive.
+
+Respond ONLY with valid JSON matching this schema:
+{ "groups": [ { "path": ["Subject", "Topic", "Subtopic"], "notebook_ids": ["id1", "id2"] } ] }
+Return the JSON object directly.`;
+
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 120000);
+
+      const response = await fetch(`${this.config.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.config.apiKey}`
+        },
+        body: JSON.stringify({
+          model: this.config.chatModel,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: 'Notebooks:\n' + listing }
+          ],
+          response_format: { type: 'json_object' },
+          stream: false
+        }),
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`API Request failed with status ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+      const parsed = this.parseJSONResponse(data.choices[0].message.content.trim());
+      const groups = Array.isArray(parsed) ? parsed : (parsed.groups || []);
+      const validIds = new Set(notebooks.map(nb => nb.id));
+      return {
+        groups: groups
+          .map(g => ({
+            path: Array.isArray(g.path) ? g.path.map(String) : [],
+            notebook_ids: (g.notebook_ids || []).filter(id => validIds.has(id))
+          }))
+          .filter(g => g.path.length && g.notebook_ids.length)
+      };
+    } catch (error) {
+      console.error('Error suggesting grouping:', error);
+      throw error;
+    }
   },
 
   generateDemoAnalysis(sources) {

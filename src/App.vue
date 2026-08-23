@@ -23,6 +23,10 @@
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
             {{ t('app.globalChat') }}
           </li>
+          <li @click="isMaterialManagerOpen = true" class="nav-item">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="6" rx="1"></rect><rect x="2" y="16" width="6" height="6" rx="1"></rect><rect x="16" y="16" width="6" height="6" rx="1"></rect><path d="M12 8v4M5 16v-2a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v2"></path></svg>
+            {{ t('app.manageMaterials') }}
+          </li>
         </ul>
       </div>
 
@@ -78,10 +82,17 @@
             <div :key="currentView" style="width: 100%; height: 100%;">
              <DashboardView v-if="currentView === 'dashboard'" :searchQuery="searchQuery" :userName="userName" @selectNotebook="openNotebook" @openChat="handleDashboardOpenChat" @openSubject="openSubject" />
              <CreateNotebookView v-if="currentView === 'create'" @notebookCreated="setView('dashboard'); refreshSubjects()" />
-             <NotebookDetailView v-if="currentView === 'detail'" :key="'nb-' + activeNotebookId" :notebookId="activeNotebookId" @openChat="openChat" @back="setView('dashboard')" @notebookDeleted="handleNotebookDeleted" />
+              <NotebookDetailView v-if="currentView === 'detail'" :key="'nb-' + activeNotebookId" :notebookId="activeNotebookId" :initialTab="pendingDetailTab" @openChat="openChat" @openFlashcards="openFlashcards" @back="setView('dashboard')" @notebookDeleted="handleNotebookDeleted" @openSubject="openSubject" />
              <SubjectView v-if="currentView === 'subject'" :key="'subject-' + activeSubject" :subject="activeSubject" @selectNotebook="openNotebook" @openChat="openSubjectChat" />
              <!-- Keyed by chat scope so switching chats (global/subject/notebook) recreates the component and reloads its history -->
-             <ChatView v-if="currentView === 'chat'" :key="(chatMode || 'notebook') + '|' + (activeSubject || '') + '|' + (activeNotebookId || '')" :notebookId="chatMode ? null : activeNotebookId" :subject="chatMode === 'subject' ? activeSubject : null" :globalMode="chatMode === 'global'" @back="handleChatBack" />
+              <ChatView v-if="currentView === 'chat'" :key="(chatMode || 'notebook') + '|' + (activeSubject || '') + '|' + (activeNotebookId || '')" :notebookId="chatMode ? null : activeNotebookId" :subject="chatMode === 'subject' ? activeSubject : null" :globalMode="chatMode === 'global'" @back="handleChatBack" @openFlashcards="openFlashcards" @openQuiz="openNotebookQuiz" />
+             <FlashcardView 
+               v-if="currentView === 'flashcards'" 
+               :key="'fc-' + activeNotebookId" 
+               :title="activeNotebook?.title" 
+               :flashcards="activeNotebook?.flashcards || []" 
+               @back="setView('detail')" 
+             />
              <SettingsView v-if="currentView === 'settings'" />
            </div>
          </transition>
@@ -89,6 +100,8 @@
     </main>
 
     <!-- Auth Overlay / Loading -->
+    <!-- Material manager modal -->
+    <MaterialManager v-if="isMaterialManagerOpen" @close="isMaterialManagerOpen = false" @changed="refreshSubjects" />
     <div v-if="isAuthChecking" class="auth-loading-overlay">
       <div class="loading-spinner"></div>
     </div>
@@ -108,18 +121,24 @@ import CreateNotebookView from './components/CreateNotebookView.vue'
 import NotebookDetailView from './components/NotebookDetailView.vue'
 import SubjectView from './components/SubjectView.vue'
 import ChatView from './components/ChatView.vue'
+import FlashcardView from './components/FlashcardView.vue'
 import SettingsView from './components/SettingsView.vue'
+import MaterialManager from './components/MaterialManager.vue'
 
 const isAuthChecking = ref(true)
 const isAuthenticated = ref(false)
 const currentView = ref('dashboard')
 const activeSubject = ref(null)
 const activeNotebookId = ref(null)
+const activeNotebook = ref(null)
+// Tab to pre-select when opening the notebook detail view (e.g. 'quiz')
+const pendingDetailTab = ref(null)
 const searchQuery = ref('')
 const userName = ref('')
 const isProfileMenuOpen = ref(false)
 const isSidebarOpen = ref(false)
 const subjects = ref([])
+const isMaterialManagerOpen = ref(false)
 const connectionStatus = ref('offline')
 const connectionStatusText = ref('Disconnected')
 const t = i18n.t
@@ -129,6 +148,12 @@ const handleInitialRoute = () => {
   
   if (path === '/' || path === '/index.html') {
     setView('dashboard')
+    return
+  }
+
+  const notebookQuizMatch = path.match(/^\/notebooks\/([a-f0-9-]+)\/quiz$/)
+  if (notebookQuizMatch) {
+    openNotebookQuiz(notebookQuizMatch[1])
     return
   }
 
@@ -169,6 +194,12 @@ const handleInitialRoute = () => {
 
   if (path === '/create') {
     setView('create')
+    return
+  }
+
+  const flashcardMatch = path.match(/^\/notebooks\/([a-f0-9-]+)\/flashcards$/)
+  if (flashcardMatch) {
+    openFlashcards(flashcardMatch[1])
     return
   }
 
@@ -247,9 +278,23 @@ const setView = (view, param = null) => {
 
 const openNotebook = (id) => {
   chatMode.value = null
+  pendingDetailTab.value = null
   activeNotebookId.value = id
   currentView.value = 'detail'
   updateUrl(`/notebooks/${id}`)
+}
+
+// Opens the notebook detail view directly on its Quiz tab
+const openNotebookQuiz = (id) => {
+  if (!id) {
+    console.error('No notebook ID provided to openNotebookQuiz');
+    return;
+  }
+  chatMode.value = null
+  pendingDetailTab.value = 'quiz'
+  activeNotebookId.value = id
+  currentView.value = 'detail'
+  updateUrl(`/notebooks/${id}/quiz`)
 }
 
 const openChat = (id) => {
@@ -273,11 +318,16 @@ const openSubject = (subject) => {
 }
 
 const openSubjectChat = (subject) => {
+  const targetSubject = subject || activeSubject.value
+  if (!targetSubject) {
+    console.error('No subject provided to openSubjectChat');
+    return;
+  }
   chatMode.value = 'subject'
-  activeSubject.value = subject
+  activeSubject.value = targetSubject
   activeNotebookId.value = null
   currentView.value = 'chat'
-  updateUrl(`/chat/${encodeURIComponent(subject)}`)
+  updateUrl(`/chat/${encodeURIComponent(targetSubject)}`)
 }
 
 const isSubjectActive = (subject) => {
@@ -314,17 +364,17 @@ const refreshSubjects = async () => {
   }
 }
 
-const checkAIConnection = async () => {
-  aiService.init()
-  const result = await aiService.testConnection()
-  if (result.success) {
-    connectionStatus.value = aiService.config.useDemoMode ? 'demo' : 'online'
-    connectionStatusText.value = aiService.config.useDemoMode ? t('app.demoMode') : t('app.aiOnline')
-  } else {
-    connectionStatus.value = 'offline'
-    connectionStatusText.value = t('app.aiOffline')
-  }
-}
+// const checkAIConnection = async () => {
+//   aiService.init()
+//   const result = await aiService.testConnection()
+//   if (result.success) {
+//     connectionStatus.value = aiService.config.useDemoMode ? 'demo' : 'online'
+//     connectionStatusText.value = aiService.config.useDemoMode ? t('app.demoMode') : t('app.aiOnline')
+//   } else {
+//     connectionStatus.value = 'offline'
+//     connectionStatusText.value = t('app.aiOffline')
+//   }
+// }
 
 onMounted(async () => {
   try {
@@ -340,6 +390,24 @@ onMounted(async () => {
     handleInitialRoute()
   })
 })
+
+const openFlashcards = async (id) => {
+  if (!id) {
+    console.error('No notebook ID provided to openFlashcards');
+    alert('Error: No notebook ID found.');
+    return;
+  }
+  activeNotebookId.value = id
+  try {
+    activeNotebook.value = await dbService.getNotebook(id)
+    currentView.value = 'flashcards'
+    updateUrl(`/notebooks/${id}/flashcards`)
+  } catch (e) {
+    console.error('Failed to load flashcards:', e)
+    alert('Failed to load flashcards: ' + (e.message || 'Unknown error'))
+    setView('dashboard')
+  }
+}
 </script>
 
 <style src="./style.css"></style>

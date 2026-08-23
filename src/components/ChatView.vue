@@ -1,110 +1,166 @@
 <template>
   <div class="chat-container">
-    <div class="chat-header">
-      <div class="chat-title">
-        <button @click="$emit('back')" class="btn-back">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-        </button>
-        <div>
-          <h2>{{ t('chat.coach') }}</h2>
-          <p v-if="subject">{{ t('chat.gettingUpToSpeedSubject', { subject }) }}</p>
-          <p v-else-if="notebook">{{ t('chat.gettingUpToSpeedNotebook', { title: notebook?.title }) }}</p>
-          <p v-else>{{ t('chat.acrossAll') }}</p>
+    <div class="chat-main">
+      <div class="chat-header">
+        <div class="chat-title">
+          <button @click="$emit('back')" class="btn-back">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+          </button>
+          <div>
+            <h2>{{ t('chat.coach') }}</h2>
+            <p v-if="subject">{{ t('chat.gettingUpToSpeedSubject', { subject }) }}</p>
+            <p v-else-if="notebook">{{ t('chat.gettingUpToSpeedNotebook', { title: notebook?.title }) }}</p>
+            <p v-else>{{ t('chat.acrossAll') }}</p>
+          </div>
+        </div>
+        <div class="chat-header-actions">
+          <button @click="toggleCtxSidebar" :class="['btn-panel-toggle', { active: isCtxOpen }]" :title="t('ctx.toggle')">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="15" y1="3" x2="15" y2="21"></line></svg>
+          </button>
+          <button @click="clearHistory" class="btn-clear-chat">
+            {{ t('chat.clearHistory') }}
+          </button>
         </div>
       </div>
-      <button @click="clearHistory" class="btn-clear-chat">
-        {{ t('chat.clearHistory') }}
-      </button>
-    </div>
 
-    <div class="chat-messages" ref="chatWindow">
-      <div v-for="(msg, index) in messages" :key="index" :class="['message-wrapper', msg.sender === 'user' ? 'user-msg' : 'ai-msg']">
-        <div class="message-bubble">
-          <div class="message-content" @click="onBubbleClick($event, messageView(msg).refs)">
-            <template v-if="msg.sender === 'ai'">
-              <div 
-                v-for="(line, lIdx) in splitIntoLines(messageView(msg).html)" 
-                :key="lIdx"
-                class="fade-in-line"
-                :style="{ animationDelay: `${lIdx * 0.1}s` }"
-                v-html="line"
-              ></div>
-            </template>
-            <template v-else>
-              <div v-html="messageView(msg).html"></div>
-            </template>
-            <!-- Sources accordion: shown only for AI messages with citations -->
-            <details v-if="msg.sender === 'ai' && messageView(msg).refs.length" class="citation-accordion">
-              <summary class="citation-accordion-title">{{ t('chat.sources') }}</summary>
-              <div class="citation-footer">
-                <button
-                  v-for="cite in messageView(msg).refs"
-                  :key="cite.num"
-                  class="citation-footer-item"
-                  :disabled="!cite.source"
-                  @click="openSource(cite)"
-                >
-                  <span class="cf-num">[{{ cite.num }}]</span>
-                  <span class="cf-body">
-                    <span class="cf-name">{{ cite.source ? cite.source.name : t('chat.unknownSource') }}</span>
-                    <span class="cf-meta" v-if="cite.source">{{ cite.source.notebookTitle }}<template v-if="cite.page"> &middot; {{ t('chat.page', { n: cite.page }) }}</template></span>
-                    <span class="cf-quote" v-if="cite.quote">&ldquo;{{ cite.quote }}&rdquo;</span>
-                  </span>
-                </button>
-              </div>
-            </details>
+      <div v-if="selectionDirty" class="ctx-changed-banner">
+        <span>{{ t('ctx.changedNotice') }}</span>
+        <button @click="selectionDirty = false">&times;</button>
+      </div>
+
+      <div class="chat-messages" ref="chatWindow">
+        <div v-for="(msg, index) in messages" :key="index" :class="['message-wrapper', msg.sender === 'user' ? 'user-msg' : 'ai-msg']">
+          <div class="message-bubble">
+            <div class="message-content" @click="onBubbleClick($event, parseMessage(msg).refs)">
+              <template v-if="msg.sender === 'ai'">
+                <template v-for="(chunk, cIdx) in parseMessage(msg).chunks" :key="cIdx">
+                  <template v-if="chunk.type === 'text'">
+                    <div
+                      v-for="(line, lIdx) in splitHtmlIntoLines(chunk.content)"
+                      :key="lIdx"
+                      class="fade-in-line"
+                      :style="{ animationDelay: `${(cIdx * 2 + lIdx) * 0.15}s` }"
+                      v-html="line"
+                    ></div>
+                  </template>
+                  <details
+                    v-else-if="chunk.type === 'thinking'"
+                    class="thinking-block"
+                    :open="isThinkingOpen && index === messages.length - 1"
+                  >
+                    <summary>{{ t('chat.thinking') || 'Thinking...' }}</summary>
+                    <div class="thinking-content">{{ chunk.content }}</div>
+                  </details>
+                    <ToolCall
+                     v-else-if="chunk.type === 'tool'"
+                     :tool="chunk.tool"
+                     :params="chunk.params"
+                     :notebookId="props.notebookId"
+                     :onAction="handleToolAction"
+                     @openFlashcards="e => $emit('openFlashcards', e)"
+                     @openQuiz="e => $emit('openQuiz', e)"
+                   />
+                </template>
+              </template>
+              <template v-else>
+                <div v-html="citationsService.renderMarkdownWithCitations(msg.text, sourceRegistry).html"></div>
+              </template>
+              <!-- Sources accordion: shown only for AI messages with citations -->
+              <details v-if="msg.sender === 'ai' && parseMessage(msg).refs.length" class="citation-accordion">
+                <summary class="citation-accordion-title">{{ t('chat.sources') }}</summary>
+                <div class="citation-footer">
+                  <button
+                    v-for="cite in parseMessage(msg).refs"
+                    :key="cite.num"
+                    class="citation-footer-item"
+                    :disabled="!cite.source"
+                    @click="openSource(cite)"
+                  >
+                    <span class="cf-num">[{{ cite.num }}]</span>
+                    <span class="cf-body">
+                      <span class="cf-name">{{ cite.source ? cite.source.name : t('chat.unknownSource') }}</span>
+                      <span class="cf-meta" v-if="cite.source">{{ cite.source.notebookTitle }}<template v-if="cite.page"> &middot; {{ t('chat.page', { n: cite.page }) }}</template></span>
+                      <span class="cf-quote" v-if="cite.quote">&ldquo;{{ cite.quote }}&rdquo;</span>
+                    </span>
+                  </button>
+                </div>
+              </details>
+            </div>
+          </div>
+        </div>
+        <div v-if="isTyping" class="message-wrapper ai-msg">
+          <div class="message-bubble typing">
+            <div class="typing-dots"><span></span><span></span><span></span></div>
           </div>
         </div>
       </div>
-      <div v-if="isTyping" class="message-wrapper ai-msg">
-        <div class="message-bubble typing">
-          <div class="typing-dots"><span></span><span></span><span></span></div>
-        </div>
+
+      <div class="chat-input-area">
+        <form @submit.prevent="sendMessage" class="chat-form">
+          <input
+            v-model="userInput"
+            type="text"
+            :placeholder="t('chat.placeholder')"
+            :disabled="isTyping"
+          >
+          <button type="submit" :disabled="!userInput.trim() || isTyping">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 2"></polygon></svg>
+          </button>
+        </form>
       </div>
+
+      <SourceViewerModal v-if="activeCite" :cite="activeCite" @close="activeCite = null" />
     </div>
 
-    <div class="chat-input-area">
-      <form @submit.prevent="sendMessage" class="chat-form">
-        <input
-          v-model="userInput"
-          type="text"
-          :placeholder="t('chat.placeholder')"
-          :disabled="isTyping"
-        >
-        <button type="submit" :disabled="!userInput.trim() || isTyping">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 2"></polygon></svg>
-        </button>
-      </form>
-    </div>
-
-    <SourceViewerModal v-if="activeCite" :cite="activeCite" @close="activeCite = null" />
+    <transition name="ctx-slide">
+      <ChatContextSidebar
+        v-if="isCtxOpen"
+        class="chat-ctx-sidebar"
+        :tree="materialsTree"
+        :grouped-notebooks="groupedNotebooks"
+        :all-notebooks="allNotebooks"
+        :selected-ids="selectedIds"
+        @update:selectedIds="onSelectionChange"
+        @close="toggleCtxSidebar"
+      />
+    </transition>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick, computed } from 'vue'
+import { ref, onMounted, nextTick, computed, watch } from 'vue'
 import { dbService } from '../services/db'
 import { aiService } from '../services/ai'
 import { citationsService } from '../services/citations'
+import { materialsService } from '../services/materials'
 import { i18n } from '../services/i18n'
 import SourceViewerModal from './SourceViewerModal.vue'
+import ToolCall from './ToolCall.vue'
+import ChatContextSidebar from './ChatContextSidebar.vue'
 
 const t = i18n.t
 const NL = String.fromCharCode(10)
 
 const props = defineProps(['notebookId', 'subject', 'globalMode'])
 const notebook = ref(null)
-const subjectNotebooks = ref([])
-const allNotebooks = ref([])
 const messages = ref([])
 const userInput = ref('')
 const isTyping = ref(false)
+const isThinkingOpen = ref(false)
 const chatWindow = ref(null)
 
-// Numbered [1]..[N] registry of every source visible to this chat
-const sourceRegistry = ref([])
-// Currently opened citation in the source viewer modal
-const activeCite = ref(null)
+// ---- Materials tree + selection state -------------------------------------
+const materialsFlat = ref([])
+const materialsTree = computed(() => materialsService.buildTree(materialsFlat.value))
+const allNotebooks = ref([])
+const groupedNotebooks = computed(() => materialsService.groupNotebooksByMaterial(allNotebooks.value))
+
+// Selection = Set of notebook ids included in context/citations
+const selectedIds = ref(new Set())
+// Sidebar visibility (persisted per scope)
+const isCtxOpen = ref(true)
+// Shows a notice when the selection changed mid-conversation
+const selectionDirty = ref(false)
 
 // Unique storage scope per chat mode: notebook id, subject namespace, or global
 const chatScopeId = computed(() => {
@@ -113,18 +169,91 @@ const chatScopeId = computed(() => {
   return props.notebookId
 })
 
+const ctxStorageKey = computed(() => `ibuki_chat_ctx::${chatScopeId.value}`)
+const sidebarStorageKey = computed(() => `ibuki_chat_sidebar::${chatScopeId.value}`)
+
+// Registry of every source visible to this chat, rebuilt reactively from the
+// current selection ([1]..[N] shared by the LLM prompt and the renderer).
+const sourceRegistry = computed(() =>
+  citationsService.buildSourceRegistry(selectedNotebooks.value)
+)
+
+const selectedNotebooks = computed(() =>
+  allNotebooks.value.filter(nb => selectedIds.value.has(nb.id))
+)
+
+function persistSelection() {
+  try {
+    localStorage.setItem(ctxStorageKey.value, JSON.stringify([...selectedIds.value]))
+  } catch (e) { /* ignore quota errors */ }
+}
+
+function onSelectionChange(nextSet) {
+  const changed = nextSet.size !== selectedIds.value.size ||
+    [...nextSet].some(id => !selectedIds.value.has(id))
+  selectedIds.value = nextSet
+  persistSelection()
+  if (changed && messages.value.length > 0) selectionDirty.value = true
+}
+
+function toggleCtxSidebar() {
+  isCtxOpen.value = !isCtxOpen.value
+  try {
+    localStorage.setItem(sidebarStorageKey.value, JSON.stringify(isCtxOpen.value))
+  } catch (e) { /* ignore */ }
+}
+
+/** Compute default selection for this scope. */
+const computeDefaultSelection = () => {
+  if (props.notebookId) {
+    // Notebook chat: pre-check this notebook's own branch entry
+    return new Set(
+      allNotebooks.value.filter(nb => nb.id === props.notebookId).map(nb => nb.id)
+    )
+  }
+  if (props.subject) {
+    return new Set(
+      allNotebooks.value.filter(nb => nb.subject === props.subject).map(nb => nb.id)
+    )
+  }
+  return new Set(allNotebooks.value.map(nb => nb.id))
+}
+
 onMounted(async () => {
   try {
-    if (props.subject) {
-      subjectNotebooks.value = await dbService.getNotebooksBySubject(props.subject)
-      sourceRegistry.value = citationsService.buildSourceRegistry(subjectNotebooks.value)
-    } else if (props.globalMode) {
-      allNotebooks.value = await dbService.getAllNotebooks()
-      sourceRegistry.value = citationsService.buildSourceRegistry(allNotebooks.value)
-    } else if (props.notebookId) {
-      notebook.value = await dbService.getNotebook(props.notebookId)
-      sourceRegistry.value = citationsService.buildSourceRegistry(notebook.value ? [notebook.value] : [])
+    // Restore sidebar visibility preference
+    try {
+      const savedOpen = localStorage.getItem(sidebarStorageKey.value)
+      if (savedOpen !== null) isCtxOpen.value = JSON.parse(savedOpen)
+    } catch (e) { /* ignore */ }
+
+    // Load the full tree + notebooks in EVERY mode so the selector can pull
+    // in extra material branches regardless of the chat's origin.
+    const [mats, nbs] = await Promise.all([
+      dbService.getMaterials().catch(() => []),
+      dbService.getAllNotebooks()
+    ])
+    materialsFlat.value = mats
+    allNotebooks.value = nbs
+
+    if (props.notebookId) {
+      notebook.value = nbs.find(nb => nb.id === props.notebookId) || null
     }
+
+    // Restore persisted selection (filtered to existing notebooks), else default
+    let restored = null
+    try {
+      const raw = localStorage.getItem(ctxStorageKey.value)
+      if (raw) restored = new Set(JSON.parse(raw))
+    } catch (e) { /* ignore */ }
+    const validIds = new Set(nbs.map(nb => nb.id))
+    if (restored && restored.size > 0) {
+      selectedIds.value = new Set([...restored].filter(id => validIds.has(id)))
+    }
+    if (selectedIds.value.size === 0) {
+      selectedIds.value = computeDefaultSelection()
+    }
+
     await loadHistory()
   } catch (e) {
     console.error('Failed to initialize chat:', e)
@@ -135,7 +264,8 @@ const loadHistory = async () => {
   const history = await dbService.getChatHistory(chatScopeId.value)
   messages.value = history.map(m => ({
     sender: m.role === 'user' ? 'user' : 'ai',
-    text: m.content
+    text: m.content,
+    meta: m.meta || null
   }))
   scrollToBottom()
 }
@@ -147,8 +277,23 @@ const scrollToBottom = async () => {
   }
 }
 
-// Build the factual context block sent to the LLM, annotated with the
-// numbered sources of each notebook so citations map back correctly.
+/**
+ * Effective registry for rendering a specific message: historical messages
+ * were answered against the registry snapshot stored in chats.meta, so old
+ * citation numbers stay correct even after the user changes the selection.
+ */
+const registryFor = (msg) => {
+  const snap = msg?.meta?.sources
+  if (Array.isArray(snap) && snap.length) {
+    return snap.map(s => ({
+      ...s,
+      content: sourceRegistry.value.find(r => r.num === s.num)?.content ?? s.content ?? null
+    }))
+  }
+  return sourceRegistry.value
+}
+
+// Build the factual context block sent to the LLM (from SELECTED notebooks only)
 const buildContextText = () => {
   const notebookBlock = (nb) => {
     const nums = sourceRegistry.value
@@ -162,23 +307,19 @@ const buildContextText = () => {
     )
   }
 
-  if (props.subject) {
-    return subjectNotebooks.value.map(notebookBlock).join(NL + NL + '=====' + NL + NL)
-  }
+  const list = selectedNotebooks.value
+  if (!list.length) return ''
+
   if (props.globalMode) {
-    // Aggregate context across ALL notebooks for the global assistant
-    return allNotebooks.value
+    return list
       .map(nb => {
         const meta = 'Notebook: "' + nb.title + '" (Subject: ' + nb.subject + ', Topic: ' + nb.material + ')'
         return notebookBlock(nb) + NL + meta
       })
       .join(NL + NL + '=====' + NL + NL)
-      .slice(0, 30000) // keep prompt within a sane size
+      .slice(0, 30000)
   }
-  if (notebook.value) {
-    return notebookBlock(notebook.value)
-  }
-  return ''
+  return list.map(notebookBlock).join(NL + NL + '=====' + NL + NL)
 }
 
 const sendMessage = async () => {
@@ -211,38 +352,93 @@ const sendMessage = async () => {
   const chatTitle = props.subject ? props.subject : (notebook.value?.title || t('chat.allNotebooks'))
   const chatType = props.subject ? t('chat.subjectAssistant') : (props.globalMode ? t('chat.globalStudyAssistant') : t('chat.notebook'))
 
+  // Snapshot of the registry at send time -> stored with the assistant
+  // message so its citations keep resolving after selection changes.
+  const registrySnapshot = sourceRegistry.value.map(r => ({
+    num: r.num,
+    name: r.name,
+    type: r.type,
+    url: r.url,
+    notebookTitle: r.notebookTitle
+  }))
+
   try {
+    isThinkingOpen.value = true;
+
+    let streamingBuffer = '';
+    let lastCommitTime = Date.now();
+    const COMMIT_THRESHOLD = 60; // characters
+    const HEARTBEAT_MS = 300;    // ms
+
+    const commitToState = (textToCommit) => {
+      if (!textToCommit) return;
+      // Append committed text to the message in state
+      messages.value[aiMsgIndex].text += textToCommit;
+      scrollToBottom();
+    };
+
+    const checkAndCommit = (force = false) => {
+      const now = Date.now();
+      const hasNewline = streamingBuffer.includes('\n');
+      const exceedsThreshold = streamingBuffer.length >= COMMIT_THRESHOLD;
+      const heartbeatPassed = (now - lastCommitTime) >= HEARTBEAT_MS;
+
+      if (force || hasNewline || exceedsThreshold || heartbeatPassed) {
+        if (hasNewline && !force) {
+          // Commit up to the last newline to keep structural integrity
+          const lastNewlineIndex = streamingBuffer.lastIndexOf('\n');
+          const toCommit = streamingBuffer.slice(0, lastNewlineIndex + 1);
+          streamingBuffer = streamingBuffer.slice(lastNewlineIndex + 1);
+          commitToState(toCommit);
+        } else {
+          // Commit everything
+          commitToState(streamingBuffer);
+          streamingBuffer = '';
+        }
+        lastCommitTime = now;
+      }
+    };
+
     await aiService.chat(
       messages.value.map(m => ({ sender: m.sender, text: m.text })),
       chatTitle,
       chatType,
       contextText,
       (chunk) => {
-        aiResponseText = chunk
-        messages.value[aiMsgIndex].text = chunk
-        scrollToBottom()
+        // aiService.chat returns the FULL accumulated text so far
+        // We need to find the delta (newly added text)
+        const delta = chunk.slice(aiResponseText.length);
+        aiResponseText = chunk;
+
+        streamingBuffer += delta;
+        checkAndCommit();
       },
       sourceRegistry.value
     )
 
+    // Final flush
+    checkAndCommit(true);
+
     if (!aiResponseText || !aiResponseText.trim()) {
-      // Never persist blank bubbles — surface the failure instead
       messages.value[aiMsgIndex] = {
         sender: 'ai',
         text: t('chat.emptyResponse')
       }
     } else {
-      // A persistence failure must never destroy a successfully streamed reply
+      messages.value[aiMsgIndex].meta = { sources: registrySnapshot }
       try {
         await dbService.saveChatMessage({
           notebookId: chatScopeId.value,
           role: 'assistant',
-          content: aiResponseText
+          content: aiResponseText,
+          meta: { sources: registrySnapshot }
         })
       } catch (saveErr) {
         console.error('Failed to persist assistant message:', saveErr)
       }
     }
+
+    selectionDirty.value = false
 
   } catch (e) {
     console.error('Chat error:', e)
@@ -252,6 +448,7 @@ const sendMessage = async () => {
     }
   } finally {
     isTyping.value = false
+    isThinkingOpen.value = false
     scrollToBottom()
   }
 }
@@ -264,39 +461,134 @@ const clearHistory = async () => {
   if (confirm(t('chat.clearConfirm', { context: contextName }))) {
     await dbService.clearChatHistory(chatScopeId.value)
     messages.value = []
+    selectionDirty.value = false
   }
 }
 
-// Cached render of each message into HTML + extracted citation refs
-const viewCache = new WeakMap()
-const messageView = (msg) => {
-  let cached = viewCache.get(msg)
-  if (!cached || cached.text !== msg.text) {
-    cached = {
-      text: msg.text,
-      view: citationsService.renderMarkdownWithCitations(msg.text, sourceRegistry.value)
+  const parseMessage = (msg) => {
+    const chunks = [];
+    const refs = [];
+    const reg = registryFor(msg);
+
+    if (msg.sender !== 'ai') {
+      return {
+        chunks: [{ type: 'text', content: citationsService.renderMarkdownWithCitations(msg.text, reg).html }],
+        refs: []
+      };
     }
-    viewCache.set(msg, cached)
-  }
-  return cached.view
-}
 
-// Event delegation: clicks on .cite-ref pills inside rendered HTML
-const onBubbleClick = (event, refs) => {
-  const el = event.target.closest('.cite-ref')
-  if (!el || el.classList.contains('cite-ref-missing')) return
-  const num = parseInt(el.dataset.citeNum, 10)
-  const cite = refs.find(r => r.num === num)
-  if (cite && cite.source) openSource(cite)
+    // Regex to match <thinking>...</thinking> and <tool_call ... />
+    const combinedRegex = /(<thinking>[\s\S]*?<\/thinking>)|(<tool_call\s+name="([^"]+)"\s+params='([^']+)'\s*\/>)/g;
+    let lastIndex = 0;
+    let match;
+
+    while ((match = combinedRegex.exec(msg.text)) !== null) {
+      // Text before the match
+      const textBefore = msg.text.slice(lastIndex, match.index);
+      if (textBefore) {
+        const rendered = citationsService.renderMarkdownWithCitations(textBefore, reg);
+        chunks.push({ type: 'text', content: rendered.html });
+        refs.push(...rendered.refs);
+      }
+
+      if (match[1]) {
+        // Thinking block
+        const thinkingContent = match[1].replace(/<\/?thinking>/g, '').trim();
+        chunks.push({ type: 'thinking', content: thinkingContent });
+      } else if (match[2]) {
+        // Tool call
+        try {
+          chunks.push({
+            type: 'tool',
+            tool: match[3],
+            params: JSON.parse(match[4])
+          });
+        } catch (e) {
+          chunks.push({ type: 'text', content: `<span class="tool-call-error">Invalid tool call: ${match[2]}</span>` });
+        }
+      }
+
+      lastIndex = combinedRegex.lastIndex;
+    }
+
+    // Final text part
+    const textAfter = msg.text.slice(lastIndex);
+    if (textAfter) {
+      const rendered = citationsService.renderMarkdownWithCitations(textAfter, reg);
+      chunks.push({ type: 'text', content: rendered.html });
+      refs.push(...rendered.refs);
+    }
+
+    return { chunks, refs };
+  }
+
+const handleToolAction = async ({ tool, params }) => {
+  if (tool === 'generate_flashcards') {
+    if (props.notebookId) {
+      try {
+        const currentNb = await dbService.getNotebook(props.notebookId);
+        const existingCount = currentNb?.flashcards?.length || 0;
+        const requestedCount = params.count || 10;
+
+        // Skip generation only if we already have at least as many cards as requested
+        if (existingCount >= requestedCount) {
+          return;
+        }
+      } catch (e) {
+        console.error('Error checking for existing flashcards:', e);
+      }
+    }
+
+    const contextText = buildContextText();
+    const cards = await aiService.generateFlashcards(contextText, params.focus, params.count);
+
+    if (props.notebookId) {
+      await dbService.saveFlashcards(props.notebookId, cards);
+    } else {
+      throw new Error('No active notebook found to save flashcards to.');
+    }
+  } else if (tool === 'generate_quiz') {
+    if (!props.notebookId) {
+      throw new Error('No active notebook found to save the quiz to.');
+    }
+
+    const contextText = buildContextText();
+    const questions = await aiService.generateQuiz(contextText, {
+      difficulty: params.difficulty,
+      focus: params.focus,
+      count: params.count
+    });
+
+    await dbService.saveQuiz({
+      notebookId: props.notebookId,
+      subject: null,
+      difficulty: params.difficulty || 'medium',
+      focus: params.focus || 'general',
+      questions
+    });
+  } else {
+    throw new Error(`Unsupported tool: ${tool}`);
+  }
 }
 
 const openSource = (cite) => {
   activeCite.value = cite
 }
 
-const splitIntoLines = (html) => {
+const activeCite = ref(null)
+
+const onBubbleClick = (event, refs) => {
+  const citeEl = event.target.closest('.cite-ref')
+  if (citeEl && !citeEl.classList.contains('cite-ref-missing')) {
+    const num = parseInt(citeEl.dataset.citeNum, 10)
+    const cite = refs.find(r => r.num === num)
+    if (cite && cite.source) openSource(cite)
+  }
+}
+
+const splitHtmlIntoLines = (html) => {
   if (!html) return []
-  // remove outer <p> and </p>
+  // Remove outer <p> and </p> tags if present, then split by paragraph boundaries
   const trimmed = html.replace(/^<p>/, '').replace(/<\/p>$/, '')
   return trimmed.split('</p><p>')
 }
@@ -305,10 +597,20 @@ const splitIntoLines = (html) => {
 <style scoped>
 .chat-container {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   height: 100%;
   background: var(--bg-dark);
   overflow: hidden;
+  position: relative;
+}
+
+.chat-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  position: relative;
 }
 
 .chat-header {
@@ -324,6 +626,56 @@ const splitIntoLines = (html) => {
   display: flex;
   align-items: center;
   gap: 1rem;
+}
+
+.chat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.btn-panel-toggle {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.45rem;
+  border-radius: 8px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+}
+
+.btn-panel-toggle:hover {
+  background: var(--border-light);
+  color: white;
+}
+
+.btn-panel-toggle.active {
+  color: white;
+  border-color: var(--accent-primary);
+  background: rgba(99, 102, 241, 0.12);
+}
+
+.ctx-changed-banner {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.45rem 1.5rem;
+  font-size: 0.78rem;
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.08);
+  border-bottom: 1px solid rgba(251, 191, 36, 0.25);
+}
+
+.ctx-changed-banner button {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 1rem;
+  cursor: pointer;
+  line-height: 1;
 }
 
 .btn-back {
@@ -413,16 +765,20 @@ const splitIntoLines = (html) => {
 }
 
 .fade-in-line {
-  animation: fade-in-line 0.5s ease forwards;
+  display: block;
+  animation: chat-fade-in-line 0.5s ease-out both;
   opacity: 0;
+  will-change: opacity, transform;
 }
 
-@keyframes fade-in-line {
+@keyframes chat-fade-in-line {
   from {
+    color: var(--accent-primary);
     opacity: 0;
-    transform: translateY(-12px);
+    transform: translateY(5px);
   }
   to {
+    color: var(--text-primary);
     opacity: 1;
     transform: translateY(0);
   }
@@ -509,5 +865,28 @@ const splitIntoLines = (html) => {
 .chat-form button:not(:disabled):hover {
   transform: scale(1.05);
   box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+}
+
+/* Sidebar transitions */
+.ctx-slide-enter-active,
+.ctx-slide-leave-active {
+  transition: transform 0.22s ease, opacity 0.22s ease;
+}
+.ctx-slide-enter-from,
+.ctx-slide-leave-to {
+  transform: translateX(40px);
+  opacity: 0;
+}
+
+/* On narrow screens the sidebar floats over the chat */
+@media (max-width: 900px) {
+  .chat-ctx-sidebar {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    box-shadow: -8px 0 30px rgba(0, 0, 0, 0.45);
+  }
 }
 </style>
