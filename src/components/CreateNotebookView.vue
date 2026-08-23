@@ -2,7 +2,7 @@
   <div class="creator-container">
     <!-- Left Panel: Source Upload -->
     <div class="creator-panel">
-      <h2>1. Upload Sources</h2>
+      <h2>{{ t('create.uploadSources') }}</h2>
       
       <div 
         class="drag-zone" 
@@ -13,9 +13,7 @@
         @click="$refs.fileInput.click()"
       >
         <div class="drag-icon">📁</div>
-        <div class="drag-text">
-          Drag & drop files here or <span>browse</span>
-        </div>
+        <div class="drag-text" v-html="dragDropHtml"></div>
         <input 
           ref="fileInput" 
           type="file" 
@@ -33,7 +31,7 @@
           
           <div class="source-details">
             <div class="source-name">{{ src.name }}</div>
-            <div class="source-meta-tag">{{ src.type === 'image' ? 'Image' : (src.type === 'pdf' ? 'PDF File' : 'Text File') }}</div>
+            <div class="source-meta-tag">{{ src.type === 'image' ? t('create.image') : (src.type === 'pdf' ? t('create.pdfFile') : t('create.textFile')) }}</div>
           </div>
           
           <button @click="removeSource(index)" class="btn-remove-source">
@@ -48,13 +46,13 @@
         :disabled="sources.length === 0 || isAnalyzing"
       >
         <svg v-if="!isAnalyzing" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a10 10 0 1 0 10 10H12V2z"></path><path d="M12 12L20 12"></path><path d="M12 12L12 20"></path></svg>
-        {{ isAnalyzing ? 'Processing...' : 'Process Sources' }}
+        {{ isAnalyzing ? t('create.processing') : t('create.processSources') }}
       </button>
     </div>
 
     <!-- Right Panel: Notebook Details -->
     <div class="creator-panel">
-      <h2>2. Review & Edit</h2>
+      <h2>{{ t('create.reviewEdit') }}</h2>
       
       <div v-if="isAnalyzing" class="skeleton-loader">
         <div class="skeleton-text header"></div>
@@ -66,51 +64,54 @@
 
       <div v-else-if="notebook" class="notebook-form">
         <div class="input-group">
-          <label>Title</label>
+          <label>{{ t('create.title') }}</label>
           <input v-model="notebook.title" type="text">
         </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem">
           <div class="input-group">
-            <label>Subject</label>
+            <label>{{ t('create.subject') }}</label>
             <input v-model="notebook.subject" type="text">
           </div>
           <div class="input-group">
-            <label>Material</label>
+            <label>{{ t('create.material') }}</label>
             <input v-model="notebook.material" type="text">
           </div>
         </div>
 
         <div class="input-group">
-          <label>Summary (Markdown)</label>
+          <label>{{ t('create.summaryMarkdown') }}</label>
           <textarea v-model="notebook.summary" rows="8"></textarea>
         </div>
 
         <div class="input-group">
-          <label>Transcription</label>
+          <label>{{ t('create.transcription') }}</label>
           <textarea v-model="notebook.transcription" rows="5"></textarea>
         </div>
 
         <button @click="saveNotebook" class="btn-save-notebook">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 11 13 11 21"></polyline><polyline points="17 21 13 21"></polyline></svg>
-          Save Notebook
+          {{ t('create.saveNotebook') }}
         </button>
       </div>
 
       <div v-else class="empty-state" style="padding: 2rem; text-align: center">
         <div class="empty-icon">✨</div>
-        <p>Upload sources and click "Analyze" to generate your notebook.</p>
+        <p>{{ t('create.emptyState') }}</p>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { aiService } from '../services/ai'
 import { dbService } from '../services/db'
+import { i18n } from '../services/i18n'
 import * as pdfjsLib from 'pdfjs-dist'
 
+const t = i18n.t
+const dragDropHtml = computed(() => t('create.dragDrop', { browse: `<span>${t('create.browse')}</span>` }))
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
 
 const emit = defineEmits(['notebookCreated'])
@@ -145,7 +146,7 @@ const processFiles = async (files) => {
         originalFiles.value.push(file)
       } catch (e) {
         console.error(`Failed to compress image ${file.name}:`, e)
-        alert(`Failed to process image ${file.name}. It might be too large or corrupted.`)
+        alert(t('create.failedImage', { name: file.name }))
       }
     } else if (file.type === 'text/plain' || file.name.endsWith('.txt')) {
       const text = await file.text()
@@ -166,7 +167,7 @@ const processFiles = async (files) => {
         originalFiles.value.push(file)
       } catch (e) {
         console.error(`Failed to process PDF ${file.name}:`, e)
-        alert(`Failed to process PDF ${file.name}.`)
+        alert(t('create.failedPdf', { name: file.name }))
       }
     }
   }
@@ -255,12 +256,12 @@ const analyzeSources = async () => {
       ))
     }
    } catch (e) {
-     let errorMessage = 'AI Analysis failed: ' + e.message;
+     let errorMessage = t('create.analysisFailed', { message: e.message });
      // Customize error messages for specific cases
      if (e.message.includes('timed out') || e.message.includes('524') || e.message.includes('520')) {
-       errorMessage = 'The AI analysis took too long to complete. This usually happens with large or complex sources. Please try again with fewer or smaller files.';
+       errorMessage = t('create.analysisTimeout');
      } else if (e.message.includes('API Request failed')) {
-       errorMessage = 'The AI service is currently unavailable. Please try again later or check your internet connection.';
+       errorMessage = t('create.analysisUnavailable');
      }
      alert(errorMessage);
    } finally {
@@ -273,7 +274,7 @@ const saveNotebook = async () => {
     await dbService.saveNotebook(notebook.value, originalFiles.value)
     emit('notebookCreated')
   } catch (e) {
-    alert('Failed to save notebook: ' + e.message)
+    alert(t('create.saveFailed', { message: e.message }))
   }
 }
 </script>

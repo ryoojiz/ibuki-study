@@ -90,8 +90,9 @@ body.auth-hidden .app-container {
   flex-direction: column;
   height: 100%;
   padding: 1.5rem 1.25rem;
-  z-index: 10;
+  z-index: 100;
   flex-shrink: 0;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .logo-container {
@@ -284,11 +285,14 @@ body.auth-hidden .app-container {
   position: sticky;
   top: 0;
   z-index: 5;
+  gap: 1rem;
 }
 
 .header-search {
   position: relative;
   width: 350px;
+  flex-grow: 1;
+  max-width: 500px;
 }
 
 .header-search input {
@@ -320,12 +324,54 @@ body.auth-hidden .app-container {
 }
 
 /* --- Views Layouts --- */
+/* The view container holds the main content area. Adding transitions for both padding and
+   max‑width smooths the layout change when toggling fullscreen chat mode, preventing the
+   brief flash where the narrow view expands before the transition completes. */
+/* View container holds the main content area. Adding transitions for padding, max-width, width,
+   and margin smooths the layout change when toggling fullscreen chat mode, preventing a brief
+   flash where the narrow view expands before the chat fully loads. */
 .view-container {
   padding: 2rem;
   max-width: 1200px;
   width: 100%;
   margin: 0 auto;
   animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transition: all 0.3s ease;
+  /* Hint browsers to optimize animation */
+  will-change: padding, max-width, width, margin;
+}
+
+/* Mobile Menu Elements */
+.mobile-menu-btn {
+  display: none;
+  background: transparent;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 0.5rem;
+  z-index: 10;
+}
+
+.sidebar-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 90;
+}
+
+.view-container.view-fullscreen {
+  padding: 0;
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 @keyframes fadeIn {
@@ -1277,4 +1323,201 @@ body.auth-hidden .app-container {
 .dropdown-item.logout:hover {
   background: rgba(239, 68, 68, 0.1);
   color: #ef4444;
+}
+
+/* Auth Loading Overlay */
+.auth-loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: var(--bg-darker);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(255, 255, 255, 0.1);
+  border-left-color: var(--accent-primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Skeleton Loading */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.skeleton-box, .skeleton-text {
+  background: #2a2a35;
+  background: linear-gradient(110deg, #2a2a35 8%, #353545 18%, #2a2a35 33%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+.skeleton-text {
+  height: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.skeleton-text.short { width: 30%; }
+.skeleton-text.medium { width: 60%; }
+.skeleton-text.long { width: 90%; }
+
+.skeleton-box {
+  width: 100%;
+  height: 100%;
+}
+
+.stat-card .skeleton-box {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+
+.tag-skeleton {
+  width: 60px;
+  height: 20px;
+  display: inline-block;
+  margin-right: 5px;
+}
+
+.btn-skeleton {
+  width: 70px;
+  height: 30px;
+}
+
+.short-skeleton {
+  width: 40px;
+  height: 15px;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Page Transitions */
+.page-enter-active,
+.page-leave-active {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.page-enter-from {
+  opacity: 0;
+  transform: translateX(10px);
+}
+
+.page-leave-to {
+  opacity: 0;
+  transform: translateX(-10px);
+}
+
+/* AI Enhanced Features */
+.thinking-block {
+  margin: 0.5rem 0;
+  border-left: 3px solid var(--border-light);
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+.thinking-block summary {
+  cursor: pointer;
+  padding: 0.4rem 0.8rem;
+  font-weight: bold;
+  user-select: none;
+  outline: none;
+}
+.thinking-content {
+  padding: 0 0.8rem 0.8rem 0.8rem;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+.tool-call-card {
+  margin: 0.8rem 0;
+  border: 1px solid var(--accent-primary);
+  background: rgba(99, 102, 241, 0.1);
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.tool-call-card:hover {
+  background: rgba(99, 102, 241, 0.15);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+.tool-call-header {
+  background: var(--accent-gradient);
+  color: white;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.8rem;
+  font-weight: bold;
+}
+.tool-call-body {
+  padding: 0.8rem;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+}
+
+.math-block {
+  margin: 1rem 0;
+  text-align: center;
+  overflow-x: auto;
+  padding: 0.5rem 0;
+}
+
+/* --- Mobile Responsiveness --- */
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    transform: translateX(-100%);
+    z-index: 100;
+  }
+
+  .sidebar.sidebar-open {
+    transform: translateX(0);
+  }
+
+  .mobile-menu-btn {
+    display: block;
+  }
+
+  .main-header {
+    padding: 1rem;
+  }
+
+  .header-search {
+    width: auto;
+  }
+
+  .view-container {
+    padding: 1rem;
+  }
+
+  .dashboard-hero {
+    padding: 1.5rem;
+  }
+
+  .dashboard-hero h1 {
+    font-size: 1.5rem;
+  }
 }

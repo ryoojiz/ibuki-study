@@ -6,39 +6,53 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
         </button>
         <div>
-          <h2>Coach</h2>
-          <p v-if="subject">Getting up to speed with {{ subject }}</p>
-          <p v-else-if="notebook">Getting up to speed with {{ notebook?.title }}</p>
-          <p v-else>Across all your notebooks</p>
+          <h2>{{ t('chat.coach') }}</h2>
+          <p v-if="subject">{{ t('chat.gettingUpToSpeedSubject', { subject }) }}</p>
+          <p v-else-if="notebook">{{ t('chat.gettingUpToSpeedNotebook', { title: notebook?.title }) }}</p>
+          <p v-else>{{ t('chat.acrossAll') }}</p>
         </div>
       </div>
       <button @click="clearHistory" class="btn-clear-chat">
-        Clear History
+        {{ t('chat.clearHistory') }}
       </button>
     </div>
 
     <div class="chat-messages" ref="chatWindow">
       <div v-for="(msg, index) in messages" :key="index" :class="['message-wrapper', msg.sender === 'user' ? 'user-msg' : 'ai-msg']">
         <div class="message-bubble">
-          <div class="message-content" v-html="messageView(msg).html" @click="onBubbleClick($event, messageView(msg).refs)"></div>
-
-          <!-- Reference footer: numbered details of everything cited above -->
-          <div v-if="msg.sender === 'ai' && messageView(msg).refs.length" class="citation-footer">
-            <div class="citation-footer-title">Sources</div>
-            <button
-              v-for="cite in messageView(msg).refs"
-              :key="cite.num"
-              class="citation-footer-item"
-              :disabled="!cite.source"
-              @click="openSource(cite)"
-            >
-              <span class="cf-num">[{{ cite.num }}]</span>
-              <span class="cf-body">
-                <span class="cf-name">{{ cite.source ? cite.source.name : 'Unknown source' }}</span>
-                <span class="cf-meta" v-if="cite.source">{{ cite.source.notebookTitle }}<template v-if="cite.page"> &middot; page {{ cite.page }}</template></span>
-                <span class="cf-quote" v-if="cite.quote">&ldquo;{{ cite.quote }}&rdquo;</span>
-              </span>
-            </button>
+          <div class="message-content" @click="onBubbleClick($event, messageView(msg).refs)">
+            <template v-if="msg.sender === 'ai'">
+              <div 
+                v-for="(line, lIdx) in splitIntoLines(messageView(msg).html)" 
+                :key="lIdx"
+                class="fade-in-line"
+                :style="{ animationDelay: `${lIdx * 0.1}s` }"
+                v-html="line"
+              ></div>
+            </template>
+            <template v-else>
+              <div v-html="messageView(msg).html"></div>
+            </template>
+            <!-- Sources accordion: shown only for AI messages with citations -->
+            <details v-if="msg.sender === 'ai' && messageView(msg).refs.length" class="citation-accordion">
+              <summary class="citation-accordion-title">{{ t('chat.sources') }}</summary>
+              <div class="citation-footer">
+                <button
+                  v-for="cite in messageView(msg).refs"
+                  :key="cite.num"
+                  class="citation-footer-item"
+                  :disabled="!cite.source"
+                  @click="openSource(cite)"
+                >
+                  <span class="cf-num">[{{ cite.num }}]</span>
+                  <span class="cf-body">
+                    <span class="cf-name">{{ cite.source ? cite.source.name : t('chat.unknownSource') }}</span>
+                    <span class="cf-meta" v-if="cite.source">{{ cite.source.notebookTitle }}<template v-if="cite.page"> &middot; {{ t('chat.page', { n: cite.page }) }}</template></span>
+                    <span class="cf-quote" v-if="cite.quote">&ldquo;{{ cite.quote }}&rdquo;</span>
+                  </span>
+                </button>
+              </div>
+            </details>
           </div>
         </div>
       </div>
@@ -54,7 +68,7 @@
         <input
           v-model="userInput"
           type="text"
-          placeholder="Ask a question about your notes..."
+          :placeholder="t('chat.placeholder')"
           :disabled="isTyping"
         >
         <button type="submit" :disabled="!userInput.trim() || isTyping">
@@ -72,8 +86,10 @@ import { ref, onMounted, nextTick, computed } from 'vue'
 import { dbService } from '../services/db'
 import { aiService } from '../services/ai'
 import { citationsService } from '../services/citations'
+import { i18n } from '../services/i18n'
 import SourceViewerModal from './SourceViewerModal.vue'
 
+const t = i18n.t
 const NL = String.fromCharCode(10)
 
 const props = defineProps(['notebookId', 'subject', 'globalMode'])
@@ -192,8 +208,8 @@ const sendMessage = async () => {
   messages.value.push({ sender: 'ai', text: '' })
   let aiResponseText = ''
 
-  const chatTitle = props.subject ? props.subject : (notebook.value?.title || 'All Notebooks')
-  const chatType = props.subject ? 'Subject Assistant' : (props.globalMode ? 'Global Study Assistant' : 'Notebook')
+  const chatTitle = props.subject ? props.subject : (notebook.value?.title || t('chat.allNotebooks'))
+  const chatType = props.subject ? t('chat.subjectAssistant') : (props.globalMode ? t('chat.globalStudyAssistant') : t('chat.notebook'))
 
   try {
     await aiService.chat(
@@ -213,7 +229,7 @@ const sendMessage = async () => {
       // Never persist blank bubbles — surface the failure instead
       messages.value[aiMsgIndex] = {
         sender: 'ai',
-        text: '⚠️ The AI returned an empty response. Please check your API configuration in Settings and try again.'
+        text: t('chat.emptyResponse')
       }
     } else {
       // A persistence failure must never destroy a successfully streamed reply
@@ -232,7 +248,7 @@ const sendMessage = async () => {
     console.error('Chat error:', e)
     messages.value[aiMsgIndex] = {
       sender: 'ai',
-      text: `⚠️ Sorry, I encountered an error: ${e.message || 'unknown error'}. Please try again.`
+      text: t('chat.error', { message: e.message || 'unknown error' })
     }
   } finally {
     isTyping.value = false
@@ -242,10 +258,10 @@ const sendMessage = async () => {
 
 const clearHistory = async () => {
   const contextName = props.subject
-    ? `subject "${props.subject}"`
-    : (props.globalMode ? 'the Global Assistant' : `"${notebook.value?.title || 'this notebook'}"`)
+    ? t('chat.clearSubject', { subject: props.subject })
+    : (props.globalMode ? t('chat.clearGlobal') : t('chat.clearNotebook', { title: notebook.value?.title || 'this notebook' }))
 
-  if (confirm(`Clear all chat history for ${contextName}?`)) {
+  if (confirm(t('chat.clearConfirm', { context: contextName }))) {
     await dbService.clearChatHistory(chatScopeId.value)
     messages.value = []
   }
@@ -277,6 +293,13 @@ const onBubbleClick = (event, refs) => {
 const openSource = (cite) => {
   activeCite.value = cite
 }
+
+const splitIntoLines = (html) => {
+  if (!html) return []
+  // remove outer <p> and </p>
+  const trimmed = html.replace(/^<p>/, '').replace(/<\/p>$/, '')
+  return trimmed.split('</p><p>')
+}
 </script>
 
 <style scoped>
@@ -285,8 +308,6 @@ const openSource = (cite) => {
   flex-direction: column;
   height: 100%;
   background: var(--bg-dark);
-  border-radius: 16px;
-  border: 1px solid var(--border-light);
   overflow: hidden;
 }
 
@@ -389,6 +410,22 @@ const openSource = (cite) => {
   color: var(--text-primary);
   border: 1px solid var(--border-light);
   border-bottom-left-radius: 4px;
+}
+
+.fade-in-line {
+  animation: fade-in-line 0.5s ease forwards;
+  opacity: 0;
+}
+
+@keyframes fade-in-line {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .typing {

@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
+    "katex": "^0.18.4",
     "marked": "^11.0.0",
     "pdfjs-dist": "^6.2.108",
     "vue": "^3.4.0"

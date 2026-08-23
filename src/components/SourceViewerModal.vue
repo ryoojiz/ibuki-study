@@ -5,9 +5,15 @@
         <div class="svm-heading">
           <div class="svm-title">
             <span class="svm-num">[{{ cite.num }}]</span>
-            {{ source ? source.name : 'Unknown source' }}
+            {{ source ? source.name : t('svm.unknownSource') }}
           </div>
-          <div class="svm-sub" v-if="source">from notebook "{{ source.notebookTitle }}"</div>
+          <div class="svm-sub" v-if="source">
+            {{ t('svm.fromNotebook', { title: '' }).trim() }}
+            <a v-if="source.notebookId" :href="'/notebooks/' + source.notebookId" class="svm-notebook-link">
+              {{ source.notebookTitle }}
+            </a>
+            <template v-else>{{ source.notebookTitle }}</template>
+          </div>
         </div>
         <div class="svm-header-actions">
           <a
@@ -17,10 +23,10 @@
             rel="noopener"
             class="svm-open-original"
           >
-            Open original
+            {{ t('svm.openOriginal') }}
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
           </a>
-          <button @click="$emit('close')" class="svm-close-btn" aria-label="Close">
+          <button @click="$emit('close')" class="svm-close-btn" :aria-label="t('svm.close')">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
           </button>
         </div>
@@ -29,27 +35,36 @@
       <div class="svm-body" ref="bodyEl">
         <div v-if="loading" class="svm-loading">
           <div class="svm-spinner"></div>
-          Loading source...
+          {{ t('svm.loading') }}
         </div>
 
         <template v-else>
-          <img v-if="isImage && !imageError" :src="imageSrc" class="svm-image" alt="Source material" @error="imageError = true" />
+          <div v-if="isImage && !imageError" class="svm-image-container">
+            <img :src="imageSrc" class="svm-image" :alt="t('svm.sourceMaterial')" @error="imageError = true" />
+            <div 
+              v-if="cite.bbox" 
+              class="svm-bbox-highlight"
+              :style="bboxStyle"
+            >
+              <div class="svm-bbox-label" v-if="cite.quote">{{ cite.quote }}</div>
+            </div>
+          </div>
 
           <div v-if="isImage && imageError" class="svm-empty">
-            Could not load this image. The storage bucket may be unavailable or the file was moved.
-            <a v-if="source && source.url" :href="source.url" target="_blank" rel="noopener">Try opening it directly</a>
+            {{ t('svm.imageError') }}
+            <a v-if="source && source.url" :href="source.url" target="_blank" rel="noopener">{{ t('svm.tryOpen') }}</a>
           </div>
 
           <div v-if="!isImage && highlightedHtml" class="svm-text" v-html="highlightedHtml"></div>
 
           <div v-if="!isImage && !highlightedHtml" class="svm-empty">
-            Source content is not available for highlighting.
-            <span v-if="source && source.url">You can still open the original file.</span>
+            {{ t('svm.noContent') }}
+            <span v-if="source && source.url">{{ t('svm.openOriginalFile') }}</span>
           </div>
 
           <div v-if="cite.quote" class="svm-quote-chip">
-            <span class="svm-quote-label">AI cited</span>
-            <span class="svm-quote-text">"{{ cite.quote }}"<template v-if="cite.page"> (page {{ cite.page }})</template></span>
+            <span class="svm-quote-label">{{ t('svm.aiCited') }}</span>
+            <span class="svm-quote-text">"{{ cite.quote }}"<template v-if="cite.page"> ({{ t('svm.page', { n: cite.page }) }})</template></span>
           </div>
         </template>
       </div>
@@ -60,8 +75,10 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { citationsService } from '../services/citations'
+import { i18n } from '../services/i18n'
 import * as pdfjsLib from 'pdfjs-dist'
 
+const t = i18n.t
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/' + pdfjsLib.version + '/pdf.worker.min.js'
 
@@ -78,6 +95,17 @@ const imageError = ref(false)
 const source = computed(() => props.cite?.source || null)
 const isImage = computed(() => source.value?.type === 'image')
 const imageSrc = computed(() => source.value?.url || source.value?.content || '')
+
+const bboxStyle = computed(() => {
+  if (!props.cite.bbox || props.cite.bbox.length !== 4) return {}
+  const [ymin, xmin, ymax, xmax] = props.cite.bbox
+  return {
+    top: `${ymin / 10}%`,
+    left: `${xmin / 10}%`,
+    height: `${(ymax - ymin) / 10}%`,
+    width: `${(xmax - xmin) / 10}%`,
+  }
+})
 
 // Re-extract text (with [Page N] markers) from a stored PDF file URL
 const extractPdfTextFromUrl = async (url) => {
@@ -226,6 +254,17 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
 }
 
+.svm-notebook-link {
+  color: inherit;
+  text-decoration: underline;
+  text-decoration-color: var(--accent-primary);
+  text-underline-offset: 2px;
+}
+
+.svm-notebook-link:hover {
+  color: white;
+}
+
 .svm-header-actions {
   display: flex;
   align-items: center;
@@ -301,14 +340,48 @@ onBeforeUnmount(() => {
   to { transform: rotate(360deg); }
 }
 
+.svm-image-container {
+  position: relative;
+  display: inline-block;
+  margin: 0 auto;
+}
+
 .svm-image {
   max-width: 100%;
   max-height: calc(100% - 70px);
   object-fit: contain;
   border-radius: 12px;
   display: block;
-  margin: 0 auto;
   border: 1px solid var(--border-light);
+}
+
+.svm-bbox-highlight {
+  position: absolute;
+  border: 2px solid var(--accent-primary);
+  background: rgba(141, 30, 227, 0.2);
+  box-shadow: 0 0 0 4px rgba(141, 30, 227, 0.1);
+  pointer-events: none;
+  animation: svm-highlight-flash 1.5s ease-out;
+  z-index: 10;
+}
+
+.svm-bbox-label {
+  position: absolute;
+  top: -24px;
+  left: -2px;
+  background: var(--accent-primary);
+  color: white;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px 4px 0 0;
+  white-space: nowrap;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+@keyframes svm-highlight-flash {
+  0% { background: rgba(141, 30, 227, 0.6); }
+  100% { background: rgba(141, 30, 227, 0.2); }
 }
 
 .svm-text {
@@ -351,7 +424,8 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: baseline;
   gap: 0.6rem;
-  background: rgba(141, 30, 227, 0.12);
+  background: rgba(110, 21, 173, 0.2);
+  backdrop-filter: blur(4px) brightness(0.5);
   border: 1px solid rgba(141, 30, 227, 0.35);
   border-radius: 10px;
   padding: 0.6rem 0.9rem;
@@ -365,7 +439,7 @@ onBeforeUnmount(() => {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--accent-primary);
+  color: var(--text-secondary);
 }
 
 .svm-quote-text {

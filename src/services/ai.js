@@ -4,7 +4,7 @@ export const aiService = {
   config: {
     apiKey: 'sk-u72MZX2E3geYa8cDHzJ0SLyn54X61zCXi0OfR0VFb84lgUEz',
     baseUrl: 'https://router.juan.web.id/v1',
-    chatModel: 'gemma-4-31b-it',
+    chatModel: 'muse-glimmer',
     visionModel: 'gemma-4-31b-it',
     useDemoMode: false,
     language: 'English'
@@ -68,7 +68,7 @@ export const aiService = {
     }
 
     const contents = [];
-    const systemPrompt = `You are "Ibuki AI", an advanced study assistant. Your job is to process student notes and whiteboard photos.
+    const systemPrompt = `You are "Ibuki", an advanced study assistant. Your job is to process student notes and whiteboard photos.
 Analyze the provided sources (which can include handwritten notes, printed text, typed text, and pictures of whiteboards).
 Perform the following actions:
 1. OCR Transcription: Transcribe the contents of any images/whiteboards. Transcribe ALL formulas, text, diagrams, and bullet points.
@@ -77,7 +77,20 @@ Perform the following actions:
 4. Summary: Write a premium study guide in Markdown. Include headers, bullet points, key terms, definitions, and equations if applicable. Make it readable, detailed, and highly organized.
 5. Inferred Title: Create a concise, relevant title for this notebook.
 
-CITATION REQUIREMENT: The sources are numbered [1], [2], [3] ... in the exact order they are provided below. Whenever you refer to information from a source, you MUST cite it inline using this exact format: [[N|short verbatim quote]] where N is the source number and the quote is a short (max ~15 words) verbatim excerpt from that source. If the source is a PDF and you can determine the page, use [[N|short verbatim quote|Page Y]] (e.g., [[3|boiling point of water|Page 4]]). Never invent source numbers.
+CITATION REQUIREMENT (GRANULAR & DYNAMIC):
+The sources are numbered [1], [2], [3] ... in the exact order they are provided below.
+You MUST use granular, inline citations for EVERY distinct factual claim. Do NOT use a single citation to cover a whole paragraph or section.
+Format: [[N|short verbatim quote]] where N is the source number and the quote is a short (max ~15 words) verbatim excerpt.
+- For PDFs: use [[N|short verbatim quote|Page Y]] (e.g., [[3|boiling point of water|Page 4]]). 
+- For Images/Whiteboards: if citing a specific visual area, use [[N|short verbatim quote|bbox:ymin,xmin,ymax,xmax]] where coordinates are normalized from 0 to 1000. Be extremely precise: the bbox MUST tightly wrap only the cited text, with ymin/xmin being the top-left and ymax/xmax being the bottom-right corners relative to the image boundaries. (e.g., [[1|derivative formula|bbox:120,400,150,600]]).
+
+EXAMPLE OF GOOD (GRANULAR) CITATION:
+"The cell membrane is a phospholipid bilayer [[1|phospholipid bilayer]] that regulates transport [[2|regulates transport|Page 2]], while the nucleus contains the genetic material [[3|nucleus contains DNA]]."
+
+EXAMPLE OF BAD (TOO GENERAL) CITATION:
+"The cell consists of a membrane, nucleus, and cytoplasm [[1|cell structure]]." (Incorrect: one citation for three different facts).
+
+Never invent source numbers.
 
 LANGUAGE REQUIREMENT: You MUST generate all text content ("title", "subject", "material", "transcription", "summary") in the following language: ${this.config.language}. Do not use any other language.
 
@@ -178,9 +191,36 @@ ${contextText}
 ---------------------
 Answer the student's questions accurately, comprehensively, and specifically based on this context. 
 If they ask questions outside this scope, politely answer but always tie it back to the subject/materials at hand.
-Use markdown for structure, math formulas ($...$ or $$...$$), and format key concepts in bold.
+Use markdown for structure, math formulas ($...$ for inline, $$...$$ for block), and format key concepts in bold.
 
-CITATION REQUIREMENT: Whenever you state information that comes from the provided context, you MUST immediately follow the claim with an inline citation in exactly this format: [[N|short verbatim quote]] where N is the source number from the SOURCE REGISTRY below and the quote is a short (max ~15 words) verbatim excerpt copied from that source's content in the context. If the source is a PDF and you know the page, use [[N|short verbatim quote|Page X]]. Example: the derivative equals 2x [[2|f'(x) = 2x]]. Never invent source numbers; only cite numbers listed in the SOURCE REGISTRY. Statements not derived from the context need no citation.
+STRICT RESPONSE PROTOCOL:
+1. INTERNAL MONOLOGUE (REQUIRED): You MUST start every single response with a reasoning process wrapped in <thinking>...</thinking> tags. Do not skip this for any reason, even for simple greetings. Use this to analyze intent, plan citations, and verify accuracy.
+2. DO NOT MENTION THE THINKING TAGS A SECOND TIME, OR AFTER A <thinking> TAG. The user should not see your internal reasoning again. This also causes issues with the formatting of the final answer. The <thinking> must only be sent once and must be closed properly.
+3. FINAL ANSWER: After the closing </thinking> tag, provide your response to the user.
+
+TOOL CALLING:
+If the user's request would benefit from a specific study tool (like generating a quiz, flashcards, or a mind map), you can suggest it using a tool call tag:
+<tool_call name="tool_name" params='{"param1": "value1"}' />
+Available tools:
+- generate_quiz: params { "difficulty": "easy|medium|hard", "focus": "specific topic" }
+- generate_flashcards: params { "count": number, "focus": "specific topic" }
+- generate_summary: params { "length": "short|detailed" }
+Only use tool calls when they clearly add value to the learning process.
+
+CITATION REQUIREMENT (GRANULAR & DYNAMIC):
+Whenever you state information that comes from the provided context, you MUST immediately follow the claim with an inline citation. 
+You MUST provide a unique citation for EVERY distinct factual claim. Do NOT use a single citation at the end of a paragraph to cover multiple points.
+Format: [[N|short verbatim quote]] where N is the source number from the SOURCE REGISTRY below and the quote is a short (max ~15 words) verbatim excerpt.
+- For PDFs: if you know the page, use [[N|short verbatim quote|Page X]]. 
+- For Images/Whiteboards: if citing a specific visual area, use [[N|short verbatim quote|bbox:ymin,xmin,ymax,xmax]] where coordinates are normalized from 0 to 1000.
+
+EXAMPLE OF GOOD CITATION:
+"The mitochondria produce ATP [[1|produce ATP]] and are known as the powerhouse [[2|powerhouse of the cell]], though some energy is also produced in the cytoplasm [[3|cytoplasm glycolysis]]."
+
+EXAMPLE OF BAD CITATION:
+"Mitochondria produce ATP and are the powerhouse of the cell, and glycolysis happens in the cytoplasm [[1|energy production]]." (Incorrect: too general).
+
+Never invent source numbers; only cite numbers listed in the SOURCE REGISTRY. Statements not derived from the context need no citation.
 
 SOURCE REGISTRY (citation numbers):
 ${registryBlock}

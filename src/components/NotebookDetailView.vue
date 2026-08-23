@@ -3,26 +3,26 @@
     <div class="notebook-content-panel">
       <button @click="$emit('back')" class="btn-back" style="display: inline-flex; align-items: center; gap: 0.4rem; align-self: flex-start; background: transparent; border: 1px solid var(--border-light); color: var(--text-secondary); padding: 0.45rem 0.8rem; border-radius: 8px; cursor: pointer; font-size: 0.85rem; margin-bottom: 0.75rem;">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
-        Back to Dashboard
+        {{ t('detail.backToDashboard') }}
       </button>
       <div class="tabs-header">
         <button
           @click="activeTab = 'summary'"
           :class="['tab-btn', { active: activeTab === 'summary' }]"
         >
-          Summary
+          {{ t('detail.summary') }}
         </button>
         <button
           @click="activeTab = 'transcription'"
           :class="['tab-btn', { active: activeTab === 'transcription' }]"
         >
-          Transcription
+          {{ t('detail.transcription') }}
         </button>
         <button
           @click="activeTab = 'sources'"
           :class="['tab-btn', { active: activeTab === 'sources' }]"
         >
-          Sources
+          {{ t('detail.sources') }}
         </button>
       </div>
 
@@ -32,7 +32,7 @@
 
           <!-- Reference footer: numbered details of everything cited above -->
           <div v-if="summaryView.refs.length" class="citation-footer">
-            <div class="citation-footer-title">Sources</div>
+            <div class="citation-footer-title">{{ t('detail.sources') }}</div>
             <button
               v-for="cite in summaryView.refs"
               :key="cite.num"
@@ -42,8 +42,8 @@
             >
               <span class="cf-num">[{{ cite.num }}]</span>
               <span class="cf-body">
-                <span class="cf-name">{{ cite.source ? cite.source.name : 'Unknown source' }}</span>
-                <span class="cf-meta" v-if="cite.source">{{ cite.source.notebookTitle }}<template v-if="cite.page"> &middot; page {{ cite.page }}</template></span>
+                <span class="cf-name">{{ cite.source ? cite.source.name : t('detail.unknownSource') }}</span>
+                <span class="cf-meta" v-if="cite.source">{{ cite.source.notebookTitle }}<template v-if="cite.page"> &middot; {{ t('detail.page', { n: cite.page }) }}</template></span>
                 <span class="cf-quote" v-if="cite.quote">&ldquo;{{ cite.quote }}&rdquo;</span>
               </span>
             </button>
@@ -54,7 +54,7 @@
           <div class="rendered-content" v-html="transcriptionView.html" @click="onContentClick($event, transcriptionView.refs)"></div>
 
           <div v-if="transcriptionView.refs.length" class="citation-footer">
-            <div class="citation-footer-title">Sources</div>
+            <div class="citation-footer-title">{{ t('detail.sources') }}</div>
             <button
               v-for="cite in transcriptionView.refs"
               :key="cite.num"
@@ -64,8 +64,8 @@
             >
               <span class="cf-num">[{{ cite.num }}]</span>
               <span class="cf-body">
-                <span class="cf-name">{{ cite.source ? cite.source.name : 'Unknown source' }}</span>
-                <span class="cf-meta" v-if="cite.source">{{ cite.source.notebookTitle }}<template v-if="cite.page"> &middot; page {{ cite.page }}</template></span>
+                <span class="cf-name">{{ cite.source ? cite.source.name : t('detail.unknownSource') }}</span>
+                <span class="cf-meta" v-if="cite.source">{{ cite.source.notebookTitle }}<template v-if="cite.page"> &middot; {{ t('detail.page', { n: cite.page }) }}</template></span>
                 <span class="cf-quote" v-if="cite.quote">&ldquo;{{ cite.quote }}&rdquo;</span>
               </span>
             </button>
@@ -75,7 +75,7 @@
         <div v-else-if="activeTab === 'sources'" class="sources-gallery">
           <div v-for="(src, index) in notebook?.sources" :key="index" class="gallery-card">
             <div style="padding: 0.5rem; font-size: 0.8rem; color: var(--text-secondary); border-bottom: 1px solid var(--border-light)">
-              Source #{{ index + 1 }}
+              {{ t('detail.sourceNum', { n: index + 1 }) }}
             </div>
             <div style="padding: 1rem; text-align: center; font-size: 0.9rem">
               <a v-if="src.url" :href="src.url" target="_blank" style="color: var(--text-primary); text-decoration: underline">
@@ -90,28 +90,28 @@
 
     <div class="detail-sidebar">
       <div class="creator-panel" style="height: 100%">
-        <h2>Notebook Info</h2>
+        <h2>{{ t('detail.notebookInfo') }}</h2>
         <div class="input-group">
-          <label>Title</label>
+          <label>{{ t('detail.title') }}</label>
           <div style="color: white; font-weight: 600">{{ notebook?.title }}</div>
         </div>
         <div class="input-group">
-          <label>Subject</label>
+          <label>{{ t('detail.subject') }}</label>
           <div style="color: white">{{ notebook?.subject }}</div>
         </div>
         <div class="input-group">
-          <label>Material</label>
+          <label>{{ t('detail.material') }}</label>
           <div style="color: white">{{ notebook?.material }}</div>
         </div>
 
         <div style="margin-top: auto; display: flex; flex-direction: column; gap: 0.75rem">
           <button @click="$emit('openChat', notebook.id)" class="btn-analyze" style="width: 100%">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
-            Discuss this Material
+            {{ t('detail.discuss') }}
           </button>
           <button @click="handleDelete" class="btn-delete-notebook" style="width: 100%">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-            Delete Notebook
+            {{ t('detail.deleteNotebook') }}
           </button>
         </div>
       </div>
@@ -125,8 +125,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { dbService } from '../services/db'
 import { citationsService } from '../services/citations'
+import { i18n } from '../services/i18n'
 import SourceViewerModal from './SourceViewerModal.vue'
 
+const t = i18n.t
 const props = defineProps(['notebookId'])
 const emit = defineEmits(['notebookDeleted', 'openChat', 'back'])
 const notebook = ref(null)
@@ -156,14 +158,14 @@ onMounted(async () => {
 
 const handleDelete = async () => {
   if (!notebook.value) return
-  if (!confirm(`Are you sure you want to delete "${notebook.value.title}"? This action cannot be undone.`)) return
+  if (!confirm(t('detail.deleteConfirm', { title: notebook.value.title }))) return
 
   try {
     await dbService.deleteNotebook(props.notebookId)
-    alert('Notebook deleted successfully')
+    alert(t('detail.deleted'))
     emit('notebookDeleted')
   } catch (e) {
-    alert('Failed to delete notebook: ' + e.message)
+    alert(t('detail.deleteFailed', { message: e.message }))
   }
 }
 

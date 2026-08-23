@@ -14,6 +14,8 @@
  *     text so the viewer can highlight + scroll to the exact passage.
  */
 
+import katex from 'katex'
+
 // Newline / entity constants built from char codes so they are safe to
 // serialize through any channel (no bare escape sequences or entities here).
 const NL = String.fromCharCode(10)
@@ -83,7 +85,35 @@ export const citationsService = {
     if (!text) return { html: '', refs: [] }
     const reg = registry || []
 
-    // 1. Escape HTML first (safe v-html output)
+    // 1. Handle special blocks (Thinking, Tool Calls, LaTeX) BEFORE general HTML escaping
+    // so we can preserve their structure and then safely escape the rest.
+    
+    // LaTeX Blocks ($$ ... $$)
+    text = text.replace(/\$\$\s*([\s\S]*?)\s*\$\$/g, (_m, formula) => {
+      try {
+        return '@@MATH_BLOCK' + btoa(formula) + '@@'
+      } catch (e) { return _m }
+    })
+
+    // LaTeX Inline ($ ... $)
+    text = text.replace(/\$([^\$]*?)\$/g, (_m, formula) => {
+      try {
+        return '@@MATH_INLINE' + btoa(formula) + '@@'
+      } catch (e) { return _m }
+    })
+
+    // Thinking Blocks (Handle both closed and open/streaming tags)
+    // This regex matches <thinking>... </thinking> OR <thinking>... (until end of string)
+    text = text.replace(/<thinking>([\s\S]*?)(?:<\/thinking>|$)/g, (_m, content) => {
+       return '@@THINKING' + btoa(content) + '@@'
+    })
+
+    // Tool Calls
+    text = text.replace(/<tool_call\s+name="([^"]*)"\s+params='([^']*)'\s*\/>/g, (_m, name, params) => {
+      return '@@TOOL' + btoa(name + '||' + params) + '@@'
+    })
+
+    // Now escape HTML for the rest of the content
     let html = this.escapeHtml(text)
 
     // Hide a trailing, still-streaming incomplete marker e.g. "[[2|quo"
@@ -96,12 +126,18 @@ export const citationsService = {
       const barIdx = rest.indexOf('|')
       let quote = rest
       let page = null
+      let bbox = null
       if (barIdx !== -1) {
         quote = rest.slice(0, barIdx)
-        const pm = rest.slice(barIdx + 1).match(/\d+/)
-        page = pm ? parseInt(pm[0], 10) : null
+        const extra = rest.slice(barIdx + 1)
+        if (extra.startsWith('bbox:')) {
+          bbox = extra.slice(5).split(',').map(Number)
+        } else {
+          const pm = extra.match(/\d+/)
+          page = pm ? parseInt(pm[0], 10) : null
+        }
       }
-      cites.push({ num: parseInt(num, 10), quote: quote.trim(), page })
+      cites.push({ num: parseInt(num, 10), quote: quote.trim(), page, bbox })
       return '@@CITE' + (cites.length - 1) + '@@'
     })
 
@@ -146,32 +182,60 @@ export const citationsService = {
     html = html.replace(/(?:<li>[\s\S]*?<\/li>)+/g, m => '<ul>' + m + '</ul>')
     html = html.replace(/<\/ul>\s*<ul>/g, '')
 
-    // 4. Substitute placeholders with clickable citation pills
+    // 4. Final substitutions: LaTeX, Thinking, Tools, and Citations
+    
+    // Restore Thinking Blocks
+    html = html.replace(/@@THINKING([\s\S]*?)@@/g, (_m, base64) => {
+      const content = atob(base64)
+      // If the original text didn't end with </thinking>, the tag is still open (streaming)
+      // We can detect this by checking if the content was captured via the '$' alternative in the regex.
+      // However, since we use btoa, we just need to check if the block is essentially "open".
+      // For simplicity, we wrap it in the details block regardless.
+      return '<details class="thinking-block" open><summary>Thought Process</summary><div class="thinking-content">' + this.escapeHtml(content) + '</div></details>'
+    })
+
+    // Restore Tool Calls
+    html = html.replace(/@@TOOL([\s\S]*?)@@/g, (_m, base64) => {
+      const [name, params] = atob(base64).split('||')
+      return '<div class="tool-call-card" data-tool-name="' + this.escapeAttr(name) + '" data-tool-params="' + this.escapeAttr(params) + '"><div class="tool-call-header"><span>🛠️ Tool Suggestion: ' + this.escapeHtml(name) + '</span></div><div class="tool-call-body">Ibuki suggests using this tool to help you study.</div></div>'
+    })
+
+    // Restore LaTeX
+    html = html.replace(/@@MATH_BLOCK([\s\S]*?)@@/g, (_m, base64) => {
+      try {
+        return '<div class="math-block">' + katex.renderToString(atob(base64), { displayMode: true, throwOnError: false }) + '</div>'
+      } catch (e) { return '$$' + atob(base64) + '$$' }
+    })
+    html = html.replace(/@@MATH_INLINE([\s\S]*?)@@/g, (_m, base64) => {
+      try {
+        return katex.renderToString(atob(base64), { displayMode: false, throwOnError: false })
+      } catch (e) { return '$' + atob(base64) + '$' }
+    })
+
+    // Citations
     html = html.replace(/@@CITE(\d+)@@/g, (_m, idx) => {
-      const c = cites[parseInt(idx, 10)]
+      const citeIdx = parseInt(idx, 10)
+      const c = cites[citeIdx]
       if (!c) return ''
+      const displayNum = citeIdx + 1
       const entry = reg.find(r => r.num === c.num)
-      if (!entry) return '<span class="cite-ref cite-ref-missing">[' + c.num + ']</span>'
+      if (!entry) return '<span class="cite-ref cite-ref-missing">[' + displayNum + ']</span>'
       return (
-        '<sup class="cite-ref" data-cite-num="' + c.num + '" title="' +
+        '<sup class="cite-ref" data-cite-num="' + displayNum + '" title="' +
         this.escapeAttr(entry.name) + ' - ' + this.escapeAttr(entry.notebookTitle) +
-        '">[' + c.num + ']</sup>'
+        '">[' + displayNum + ']</sup>'
       )
     })
 
-    // 5. Ordered unique ref list for the footer
-    const refs = []
-    const seen = new Set()
-    for (const c of cites) {
-      const existing = seen.has(c.num) ? refs.find(r => r.num === c.num) : null
-      if (existing) {
-        if (!existing.quote && c.quote) existing.quote = c.quote
-        if (!existing.page && c.page) existing.page = c.page
-        continue
-      }
-      seen.add(c.num)
-      refs.push({ ...c, source: reg.find(r => r.num === c.num) || null })
-    }
+    // 5. Sequential ref list for the footer (one entry per citation instance)
+    const refs = cites.map((c, i) => ({
+      num: i + 1, // Sequential Citation ID
+      sourceNum: c.num, // Original Source ID
+      quote: c.quote,
+      page: c.page,
+      bbox: c.bbox,
+      source: reg.find(r => r.num === c.num) || null
+    }))
 
     return { html, refs }
   },
