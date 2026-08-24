@@ -1,9 +1,8 @@
 import { citationsService } from './citations'
-
 export const aiService = {
   config: {
-    apiKey: 'sk-DzSd37lsyqPZZT0Lb1LZ0M1Q9YGRTh9Zvsdo3RJ20HZo9339',
-    baseUrl: 'https://router.juan.web.id/v1',
+    apiKey: import.meta.env.VITE_AI_API_KEY,
+    baseUrl: import.meta.env.VITE_AI_API_BASE_URL,
     chatModel: 'gemini-3.5-flash-lite',
     visionModel: 'gemini-3.5-flash-lite',
     useDemoMode: false,
@@ -177,9 +176,7 @@ Do not write any markdown code wrapper or extra text outside the JSON object. Re
   },
 
   async generateFlashcards(contextText, focus = 'general', count = 10) {
-    if (this.config.useDemoMode) {
-      return this.generateDemoFlashcards(count);
-    }
+
 
     const systemPrompt = `You are "Ibuki", an advanced study assistant. Your task is to generate a set of high-quality study flashcards based on the provided context.
     
@@ -352,15 +349,11 @@ Do not write any markdown code wrapper or extra text outside the JSON object. Re
   },
 
   async chat(messages, contextTitle, contextType, contextText, onStream, sourceRegistry = []) {
-    if (this.config.useDemoMode) {
-      const reply = await this.generateDemoChatResponse(messages, contextTitle, contextType, sourceRegistry);
-      if (onStream) onStream(reply);
-      return reply;
-    }
+
 
     const registryBlock = citationsService.buildRegistryPrompt(sourceRegistry);
 
-    const systemPrompt = `You are "Ibuki AI", a premium, friendly study companion. You are assisting the student with questions about a specific ${contextType}: "${contextTitle}".
+    const systemPrompt = `You are "Ibuki", a premium, friendly study companion. You are assisting the student with questions about a specific ${contextType}: "${contextTitle}".
 Here is the factual background context from their uploaded notebooks:
 ---------------------
 ${contextText}
@@ -381,7 +374,14 @@ Available tools:
 - generate_quiz: params { "difficulty": "easy|medium|hard", "focus": "specific topic", "count": number }
 - generate_flashcards: params { "count": number, "focus": "specific topic" }
 - generate_summary: params { "length": "short|detailed" }
-Only use tool calls when they clearly add value to the learning process.
+Only use tool calls when they clearly add value to the learning process, and make sure to confirm to the user about using them, as well as confirming arguments required by the tools like in generate_quiz with difficulty and questions amount.
+IMPORTANT & CONVERSATION FLOW:
+Before executing any tool call (such as generate_quiz, generate_flashcards, or generate_summary), you MUST explicitly ask the user for confirmation and wait for their approval before generating the tool call tag.
+When a user expresses a desire to test their brain or take a quiz, use this specific conversational flow:
+User: "i need to test my brain"
+Assistant: "How about a quiz? Would you like easy, medium, or hard, and how about length?"
+IF: User: "Easy please"
+THEN: "Great! I can generate a quiz for you. How many questions would you like?"
 
 CITATION REQUIREMENT (GRANULAR & DYNAMIC):
 Whenever you state information that comes from the provided context, you MUST immediately follow the claim with an inline citation. 
@@ -538,18 +538,6 @@ LANGUAGE REQUIREMENT: You MUST reply in the following language: ${this.config.la
    */
   async suggestGrouping(notebooks) {
     if (!notebooks?.length) return { groups: [] };
-
-    if (this.config.useDemoMode) {
-      // Demo: group by existing subject -> material
-      const byKey = new Map();
-      for (const nb of notebooks) {
-        const path = [nb.subject || 'General Study', nb.material || 'Unsorted'];
-        const key = path.join(' > ');
-        if (!byKey.has(key)) byKey.set(key, { path, notebook_ids: [] });
-        byKey.get(key).notebook_ids.push(nb.id);
-      }
-      return { groups: [...byKey.values()] };
-    }
 
     const listing = notebooks.map(nb => {
       const snippet = (nb.summary || '').replace(/[#*`]/g, '').slice(0, 200);
