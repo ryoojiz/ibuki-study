@@ -1,0 +1,28 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Ibuki Study</string>
+    <string name="title_activity_main">Ibuki Study</string>
+    <string name="package_name">com.ibuki.study</string>
+    <string name="custom_url_scheme">com.ibuki.study</string>
+    <string name="widget_description">Daily Ibuki study streak and shortcuts</string>
+    <string name="widget_streak">🔥 %1$d day streak</string>
+    <string name="widget_sign_in">Open Ibuki to sync</string>
+    <string name="widget_done_today">Studied today</string>
+    <string name="widget_study_prompt">Answer a quiz question today</string>
+    <string name="widget_quick_study">Study</string>
+    <string name="widget_global_chat">Chat</string>
+    <string name="widget_new_notebook">New</string>
+
+    <style name="WidgetAction">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">40dp</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:background">@drawable/widget_action_background</item>
+        <item name="android:gravity">center</item>
+        <item name="android:paddingLeft">4dp</item>
+        <item name="android:paddingRight">4dp</item>
+        <item name="android:textColor">#FFFFFFFF</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+</resources>

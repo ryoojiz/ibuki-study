@@ -1,0 +1,8 @@
+{
+  "appId": "com.ibuki.study",
+  "appName": "Ibuki Study",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}

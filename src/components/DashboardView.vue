@@ -13,7 +13,7 @@
 
     <div class="stats-grid">
       <template v-if="loading">
-        <div v-for="i in 3" :key="i" class="stat-card skeleton">
+        <div v-for="i in 4" :key="i" class="stat-card skeleton">
           <div class="stat-icon skeleton-box"></div>
           <div class="stat-info">
             <div class="skeleton-text short"></div>
@@ -27,6 +27,16 @@
           <div class="stat-info">
             <h3>{{ notebooks.length }}</h3>
             <p>{{ t('dash.totalNotebooks') }}</p>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon orange">🔥</div>
+          <div class="stat-info">
+            <h3>{{ studyStreak.streak }}</h3>
+            <p>{{ t('dash.studyStreak') }}</p>
+            <span :class="['streak-status', { complete: studyStreak.studiedToday }]">
+              {{ studyStreak.studiedToday ? t('dash.studiedToday') : t('dash.studyToday') }}
+            </span>
           </div>
         </div>
         <div class="stat-card">
@@ -128,6 +138,7 @@ import { ref, onMounted, computed } from 'vue'
 import { dbService } from '../services/db'
 import { authService } from '../services/auth'
 import { i18n } from '../services/i18n'
+import { widgetService } from '../services/widget'
 
 const t = i18n.t
 const props = defineProps(['searchQuery', 'userName'])
@@ -136,6 +147,7 @@ const emit = defineEmits(['selectNotebook', 'openChat'])
 const loading = ref(true)
 const notebooks = ref([])
 const totalChats = ref(0)
+const studyStreak = ref({ streak: 0, studiedToday: false })
 
 onMounted(async () => {
   await loadData()
@@ -144,8 +156,13 @@ onMounted(async () => {
 const loadData = async () => {
   try {
     notebooks.value = await dbService.getAllNotebooks()
-    const chats = await dbService.getChatHistory()
+    const [chats, streak] = await Promise.all([
+      dbService.getChatHistory(),
+      dbService.getStudyStreak()
+    ])
     totalChats.value = chats.length
+    studyStreak.value = streak
+    await widgetService.sync(streak)
   } catch (e) {
     console.error('Failed to load dashboard data:', e)
   } finally {

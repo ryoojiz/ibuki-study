@@ -163,6 +163,7 @@ import { dbService } from '../services/db'
 import { aiService } from '../services/ai'
 import { citationsService } from '../services/citations'
 import { i18n } from '../services/i18n'
+import { widgetService } from '../services/widget'
 
 const t = i18n.t
 
@@ -299,9 +300,16 @@ const progressPct = computed(() => {
   return Math.round(((currentIndex.value + 1) / total) * 100) + '%'
 })
 
-function nextQuestion() {
+async function nextQuestion() {
   if (selectedOption.value === null || !currentQuestion.value) return
   answers.value[currentIndex.value] = selectedOption.value
+  try {
+    await dbService.recordStudyDay()
+    await widgetService.sync(await dbService.getStudyStreak())
+  } catch (e) {
+    // An activity write should not discard a valid answer or interrupt study.
+    console.error('Failed to record study activity:', e)
+  }
   if (isLastQuestion.value) {
     finishQuiz()
   } else {

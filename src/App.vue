@@ -105,12 +105,12 @@
     <div v-if="isAuthChecking" class="auth-loading-overlay">
       <div class="loading-spinner"></div>
     </div>
-    <AuthOverlay v-else-if="!isAuthenticated" @authenticated="onAuthenticated" />
+    <AuthOverlay v-else-if="!isAuthenticated || isPasswordRecovery" :recoveryMode="isPasswordRecovery" :externalError="oauthError" @authenticated="onAuthenticated" @passwordUpdated="finishPasswordRecovery" />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { authService } from './services/auth'
 import { dbService } from './services/db'
 import { aiService } from './services/ai'
@@ -124,9 +124,13 @@ import ChatView from './components/ChatView.vue'
 import FlashcardView from './components/FlashcardView.vue'
 import SettingsView from './components/SettingsView.vue'
 import MaterialManager from './components/MaterialManager.vue'
+import { widgetService } from './services/widget'
 
 const isAuthChecking = ref(true)
 const isAuthenticated = ref(false)
+const isPasswordRecovery = ref(isRecoveryUrl())
+const oauthError = ref('')
+let nativeOAuthListener = null
 const currentView = ref('dashboard')
 const activeSubject = ref(null)
 const activeNotebookId = ref(null)
@@ -142,6 +146,17 @@ const isMaterialManagerOpen = ref(false)
 const connectionStatus = ref('offline')
 const connectionStatusText = ref('Disconnected')
 const t = i18n.t
+
+function isRecoveryUrl() {
+  const query = new URLSearchParams(window.location.search)
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+  return window.location.pathname === '/auth/reset' || query.get('type') === 'recovery' || hash.get('type') === 'recovery'
+}
+
+function finishPasswordRecovery() {
+  isPasswordRecovery.value = false
+  window.history.replaceState({}, '', window.location.pathname)
+}
 
 const handleInitialRoute = () => {
   const path = window.location.pathname
@@ -233,6 +248,7 @@ const onAuthenticated = async () => {
 
 const handleLogout = async () => {
   await authService.signOut()
+  await widgetService.clear()
   isAuthenticated.value = false
 }
 
@@ -364,22 +380,36 @@ const refreshSubjects = async () => {
   }
 }
 
-// const checkAIConnection = async () => {
-//   aiService.init()
-//   const result = await aiService.testConnection()
-//   if (result.success) {
-//     connectionStatus.value = aiService.config.useDemoMode ? 'demo' : 'online'
-//     connectionStatusText.value = aiService.config.useDemoMode ? t('app.demoMode') : t('app.aiOnline')
-//   } else {
-//     connectionStatus.value = 'offline'
-//     connectionStatusText.value = t('app.aiOffline')
-//   }
-// }
+const checkAIConnection = async () => {
+  aiService.init()
+  const result = await aiService.testConnection()
+  if (result.success) {
+    connectionStatus.value = aiService.config.useDemoMode ? 'demo' : 'online'
+    connectionStatusText.value = aiService.config.useDemoMode ? t('app.demoMode') : t('app.aiOnline')
+  } else {
+    connectionStatus.value = 'offline'
+    connectionStatusText.value = t('app.aiOffline')
+  }
+}
 
 onMounted(async () => {
   try {
+    nativeOAuthListener = await authService.initializeNativeOAuth({
+      onAuthenticated: async () => {
+        oauthError.value = ''
+        await onAuthenticated()
+      },
+      onPasswordRecovery: async () => {
+        oauthError.value = ''
+        isPasswordRecovery.value = true
+        await onAuthenticated()
+      },
+      onError: (error) => {
+        oauthError.value = error?.message || t('auth.googleFailed')
+      }
+    })
     const session = await authService.checkSession()
-    if (session) {
+    if (session && !isAuthenticated.value) {
       await onAuthenticated()
     }
   } finally {
@@ -389,6 +419,10 @@ onMounted(async () => {
   window.addEventListener('popstate', () => {
     handleInitialRoute()
   })
+})
+
+onBeforeUnmount(() => {
+  nativeOAuthListener?.remove()
 })
 
 const openFlashcards = async (id) => {

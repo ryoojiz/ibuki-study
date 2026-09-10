@@ -470,6 +470,20 @@ body.auth-hidden .app-container {
   color: #14b8a6;
 }
 
+.stat-icon.orange {
+  background: rgba(249, 115, 22, 0.12);
+  color: #fb923c;
+}
+
+.streak-status {
+  display: block;
+  margin-top: 0.2rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.streak-status.complete { color: #34d399; }
+
 .stat-icon.purple {
   background: rgba(139, 92, 246, 0.1);
   color: #8b5cf6;
@@ -1257,6 +1271,12 @@ body.auth-hidden .app-container {
   border-radius: 8px;
   text-align: center;
 }
+
+.auth-success { margin-top: 1rem; padding: 0.75rem; border-radius: 8px; background: rgba(52, 211, 153, 0.12); color: #6ee7b7; font-size: 0.85rem; }
+.auth-description { color: var(--text-secondary); margin: 0.5rem 0 1.25rem; font-size: 0.9rem; }
+.auth-text-button { border: 0; background: transparent; color: var(--accent-primary); cursor: pointer; font: inherit; padding: 0.35rem 0; }
+.auth-text-button:hover { text-decoration: underline; }
+.forgot-password { display: block; margin: -0.4rem 0 0.75rem auto; font-size: 0.8rem; }
 
 .user-profile-container {
   position: relative;

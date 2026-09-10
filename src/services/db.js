@@ -243,6 +243,39 @@ export const dbService = {
     if (error) throw error
   },
 
+  localStudyDate(date = new Date()) {
+    const offsetMs = date.getTimezoneOffset() * 60 * 1000
+    return new Date(date.getTime() - offsetMs).toISOString().slice(0, 10)
+  },
+
+  async recordStudyDay() {
+    const userId = await this.getUserId()
+    const { error } = await supabase
+      .from('study_days')
+      .upsert({ user_id: userId, study_date: this.localStudyDate() }, { onConflict: 'user_id,study_date', ignoreDuplicates: true })
+    if (error) throw error
+  },
+
+  async getStudyStreak() {
+    const userId = await this.getUserId()
+    const { data, error } = await supabase
+      .from('study_days')
+      .select('study_date')
+      .eq('user_id', userId)
+      .order('study_date', { ascending: false })
+    if (error) throw error
+
+    const dates = new Set((data || []).map(row => row.study_date))
+    const today = this.localStudyDate()
+    let cursor = new Date(`${today}T12:00:00`)
+    let streak = 0
+    while (dates.has(this.localStudyDate(cursor))) {
+      streak++
+      cursor.setDate(cursor.getDate() - 1)
+    }
+    return { streak, studiedToday: dates.has(today) }
+  },
+
   async saveChatMessage(chatMsg) {
     const userId = await this.getUserId()
 

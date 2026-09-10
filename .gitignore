@@ -8,6 +8,15 @@ dist-ssr/
 # Local env files
 *.local
 .env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# Signing keys (never commit these)
+*.jks
+*.keystore
 
 # Editor / OS artifacts
 .DS_Store
