@@ -330,6 +330,108 @@ Do not write any markdown code wrapper or extra text outside the JSON object. Re
     }
   },
 
+  async generateStudyGuide({ text, attachments = [], contextText = '' }) {
+    if (this.config.useDemoMode) {
+      return `# Study guide\n\n## Focus\n${text || 'Review the attached material.'}\n\n## Key ideas\n- Identify the central concept and explain it in your own words.\n- Connect it to the selected study material.\n\n## Practice\n1. What is the most important idea here?\n2. How would you apply it in an example?`
+    }
+
+    const content = [{
+      type: 'text',
+      text: `Student request:\n${text || '(image only)'}\n\nSupporting notebook context:\n${contextText}`
+    }]
+    for (const attachment of attachments) {
+      content.push({ type: 'image_url', image_url: { url: attachment.url } })
+    }
+
+    const response = await fetch(`${this.config.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.config.apiKey}` },
+      body: JSON.stringify({
+        model: attachments.length ? this.config.visionModel : this.config.chatModel,
+        messages: [
+          { role: 'system', content: `You are Ibuki, a study assistant. Create a concise, useful Markdown study guide from the user's message, attached images, and supporting context. Include a title, key ideas, and practice prompts. Reply only in ${this.config.language}.` },
+          { role: 'user', content }
+        ],
+        stream: false
+      })
+    })
+
+    if (!response.ok) throw new Error(`Study guide generation failed with status ${response.status}`)
+
+    const data = await response.json()
+    const guide = data?.choices?.[0]?.message?.content?.trim()
+    if (!guide) throw new Error('The AI returned an empty study guide.')
+    return guide
+  },
+
+  async generateMaterialFromChat({ text, attachments = [], contextText = '' }) {
+    const sources = [{
+      name: 'Chat request',
+      type: 'text',
+      content: `${text || '(image only)'}\n\nSupporting notebook context:\n${contextText}`
+    }]
+    attachments.forEach(attachment => {
+      sources.push({ name: attachment.name, type: 'image', content: attachment.url })
+    })
+
+    const material = await this.analyzeSources(sources)
+    return {
+      ...material,
+      sources: sources.map(source => source.type === 'image'
+        ? { name: source.name, type: source.type, url: source.content }
+        : { name: source.name, type: source.type, content: source.content })
+    }
+  },
+
+  async suggestMaterialRelationships(source, candidates) {
+    if (!source?.id || !candidates?.length) return []
+
+    const allowedTypes = new Set(['prerequisite', 'builds_on', 'related_to', 'contrasts_with', 'example_of'])
+    if (this.config.useDemoMode) {
+      return candidates.slice(0, 2).map((candidate, index) => ({
+        targetNotebookId: candidate.id,
+        relationType: index === 0 ? 'related_to' : 'builds_on',
+        confidence: 0.7
+      }))
+    }
+
+    const describe = notebook => {
+      const summary = (notebook.summary || '').replace(/[#*`]/g, ' ').replace(/\s+/g, ' ').slice(0, 500)
+      return `id: ${notebook.id}\ntitle: ${notebook.title}\nsubject: ${notebook.subject || 'Unsorted'}\nsummary: ${summary}`
+    }
+    const prompt = `Identify up to 5 meaningful study relationships from the SOURCE material to the CANDIDATES. A relationship must be supported by their titles, subjects, and summaries; return no item for weak matches.\n\nSOURCE:\n${describe(source)}\n\nCANDIDATES:\n${candidates.map(describe).join('\n\n')}\n\nReturn JSON only: {"relationships":[{"target_notebook_id":"candidate UUID","relation_type":"prerequisite|builds_on|related_to|contrasts_with|example_of","confidence":0.0}]}. The relation reads SOURCE relation_type TARGET. Only use candidate UUIDs.`
+
+    const response = await fetch(`${this.config.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${this.config.apiKey}` },
+      body: JSON.stringify({
+        model: this.config.chatModel,
+        messages: [
+          { role: 'system', content: 'You are a precise study knowledge-graph assistant. Return valid JSON only.' },
+          { role: 'user', content: prompt }
+        ],
+        response_format: { type: 'json_object' },
+        stream: false
+      })
+    })
+
+    if (!response.ok) throw new Error(`Relationship analysis failed with status ${response.status}`)
+
+    const data = await response.json()
+    const parsed = this.parseJSONResponse(data?.choices?.[0]?.message?.content?.trim() || '{}')
+    const candidateIds = new Set(candidates.map(candidate => candidate.id))
+    const seen = new Set()
+
+    return (parsed.relationships || [])
+      .map(item => ({
+        targetNotebookId: item.target_notebook_id,
+        relationType: item.relation_type,
+        confidence: Math.max(0, Math.min(1, Number(item.confidence) || 0.5))
+      }))
+      .filter(item => candidateIds.has(item.targetNotebookId) && allowedTypes.has(item.relationType) && !seen.has(`${item.targetNotebookId}:${item.relationType}`) && seen.add(`${item.targetNotebookId}:${item.relationType}`))
+      .slice(0, 5)
+  },
+
   generateDemoQuiz(count) {
     const questions = [];
     for (let i = 1; i <= count; i++) {
@@ -367,16 +469,18 @@ STRICT RESPONSE PROTOCOL:
 2. DO NOT MENTION THE THINKING TAGS A SECOND TIME, OR AFTER A <thinking> TAG. The user should not see your internal reasoning again. This also causes issues with the formatting of the final answer. The <thinking> must only be sent once and must be closed properly.
 3. FINAL ANSWER: After the closing </thinking> tag, provide your response to the user.
 
-TOOL CALLING:
-If the user's request would benefit from a specific study tool (like generating a quiz, flashcards, or a mind map), you can suggest it using a tool call tag:
-<tool_call name="tool_name" params='{"param1": "value1"}' />
-Available tools:
-- generate_quiz: params { "difficulty": "easy|medium|hard", "focus": "specific topic", "count": number }
-- generate_flashcards: params { "count": number, "focus": "specific topic" }
-- generate_summary: params { "length": "short|detailed" }
-Only use tool calls when they clearly add value to the learning process, and make sure to confirm to the user about using them, as well as confirming arguments required by the tools like in generate_quiz with difficulty and questions amount.
-IMPORTANT & CONVERSATION FLOW:
-Before executing any tool call (such as generate_quiz, generate_flashcards, or generate_summary), you MUST explicitly ask the user for confirmation and wait for their approval before generating the tool call tag.
+  TOOL CALLING:
+  If the user's request would benefit from a specific study tool (like generating a quiz, flashcards, or a mind map), you can suggest it using a tool call tag:
+  <tool_call name="tool_name" params='{"param1": "value1"}' />
+  Available tools:
+  - generate_quiz: params { "difficulty": "easy|medium|hard", "focus": "specific topic", "count": number }
+  - generate_flashcards: params { "count": number, "focus": "specific topic" }
+  - generate_summary: params { "length": "short|detailed" }
+  - suggest_generation: params { "focus": "specific topic" }
+  Only use tool calls when they clearly add value to the learning process, and make sure to confirm to the user about using them, as well as confirming arguments required by the tools like in generate_quiz with difficulty and questions amount.
+  IMPORTANT & CONVERSATION FLOW:
+  Before executing any tool call (such as generate_quiz, generate_flashcards, or generate_summary), you MUST explicitly ask the user for confirmation and wait for their approval before generating the tool call tag.
+  If the user explicitly asks to turn their message or attached image into a study guide, notebook, or new study material, emit suggest_generation directly. This tool only presents a choice and does not generate anything until the user chooses.
 When a user expresses a desire to test their brain or take a quiz, use this specific conversational flow:
 User: "i need to test my brain"
 Assistant: "How about a quiz? Would you like easy, medium, or hard, and how about length?"
@@ -407,7 +511,12 @@ LANGUAGE REQUIREMENT: You MUST reply in the following language: ${this.config.la
       { role: 'system', content: systemPrompt },
       ...messages.map(msg => ({
         role: msg.sender === 'user' ? 'user' : 'assistant',
-        content: msg.text
+        content: msg.sender === 'user' && msg.attachments?.length
+          ? [
+              { type: 'text', text: msg.text || '(image attachment)' },
+              ...msg.attachments.map(attachment => ({ type: 'image_url', image_url: { url: attachment.url } }))
+            ]
+          : msg.text
       }))
     ];
 
@@ -419,7 +528,7 @@ LANGUAGE REQUIREMENT: You MUST reply in the following language: ${this.config.la
           'Authorization': `Bearer ${this.config.apiKey}`
         },
         body: JSON.stringify({
-          model: this.config.chatModel,
+          model: messages.some(msg => msg.sender === 'user' && msg.attachments?.length) ? this.config.visionModel : this.config.chatModel,
           messages: apiMessages,
           temperature: 0.7,
           stream: true

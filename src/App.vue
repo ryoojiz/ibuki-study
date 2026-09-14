@@ -23,6 +23,10 @@
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
             {{ t('app.globalChat') }}
           </li>
+          <li @click="setView('graph')" :class="['nav-item', { active: currentView === 'graph' }]">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="6" r="2"></circle><circle cx="19" cy="5" r="2"></circle><circle cx="12" cy="19" r="2"></circle><line x1="7" y1="7" x2="10.5" y2="17"></line><line x1="17" y1="6" x2="13.5" y2="17"></line><line x1="7" y1="6" x2="17" y2="5"></line></svg>
+            {{ t('graph.title') }}
+          </li>
           <li @click="isMaterialManagerOpen = true" class="nav-item">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="6" rx="1"></rect><rect x="2" y="16" width="6" height="6" rx="1"></rect><rect x="16" y="16" width="6" height="6" rx="1"></rect><path d="M12 8v4M5 16v-2a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v2"></path></svg>
             {{ t('app.manageMaterials') }}
@@ -85,7 +89,8 @@
               <NotebookDetailView v-if="currentView === 'detail'" :key="'nb-' + activeNotebookId" :notebookId="activeNotebookId" :initialTab="pendingDetailTab" @openChat="openChat" @openFlashcards="openFlashcards" @back="setView('dashboard')" @notebookDeleted="handleNotebookDeleted" @openSubject="openSubject" />
              <SubjectView v-if="currentView === 'subject'" :key="'subject-' + activeSubject" :subject="activeSubject" @selectNotebook="openNotebook" @openChat="openSubjectChat" />
              <!-- Keyed by chat scope so switching chats (global/subject/notebook) recreates the component and reloads its history -->
-              <ChatView v-if="currentView === 'chat'" :key="(chatMode || 'notebook') + '|' + (activeSubject || '') + '|' + (activeNotebookId || '')" :notebookId="chatMode ? null : activeNotebookId" :subject="chatMode === 'subject' ? activeSubject : null" :globalMode="chatMode === 'global'" @back="handleChatBack" @openFlashcards="openFlashcards" @openQuiz="openNotebookQuiz" />
+              <ChatView v-if="currentView === 'chat'" :key="(chatMode || 'notebook') + '|' + (activeSubject || '') + '|' + (activeNotebookId || '')" :notebookId="chatMode ? null : activeNotebookId" :subject="chatMode === 'subject' ? activeSubject : null" :globalMode="chatMode === 'global'" @back="handleChatBack" @openFlashcards="openFlashcards" @openQuiz="openNotebookQuiz" @openMaterial="handleGeneratedMaterial" />
+             <MaterialGraphView v-if="currentView === 'graph'" @open-material="openNotebook" @open-chat="openChat" />
              <FlashcardView 
                v-if="currentView === 'flashcards'" 
                :key="'fc-' + activeNotebookId" 
@@ -121,6 +126,7 @@ import CreateNotebookView from './components/CreateNotebookView.vue'
 import NotebookDetailView from './components/NotebookDetailView.vue'
 import SubjectView from './components/SubjectView.vue'
 import ChatView from './components/ChatView.vue'
+import MaterialGraphView from './components/MaterialGraphView.vue'
 import FlashcardView from './components/FlashcardView.vue'
 import SettingsView from './components/SettingsView.vue'
 import MaterialManager from './components/MaterialManager.vue'
@@ -163,6 +169,11 @@ const handleInitialRoute = () => {
   
   if (path === '/' || path === '/index.html') {
     setView('dashboard')
+    return
+  }
+
+  if (path === '/graph') {
+    setView('graph')
     return
   }
 
@@ -286,6 +297,8 @@ const setView = (view, param = null) => {
     path = '/settings'
   } else if (view === 'create') {
     path = '/create'
+  } else if (view === 'graph') {
+    path = '/graph'
   } else if (view === 'dashboard') {
     path = '/'
   }
@@ -369,6 +382,11 @@ const handleChatBack = () => {
 const handleNotebookDeleted = async () => {
   await refreshSubjects()
   currentView.value = 'dashboard'
+}
+
+const handleGeneratedMaterial = async (notebookId) => {
+  await refreshSubjects()
+  openNotebook(notebookId)
 }
 
 const refreshSubjects = async () => {

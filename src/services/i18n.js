@@ -35,6 +35,7 @@ const translations = {
     'app.aiOnline': 'AI Online',
     'app.aiOffline': 'AI Offline',
     'app.disconnected': 'Disconnected',
+    'graph.title': 'Material Graph', 'graph.subtitle': 'Explore how your study materials connect across subjects.', 'graph.fit': 'Fit graph', 'graph.refresh': 'Refresh relationships', 'graph.refreshing': 'Refreshing…', 'graph.subject': 'Subject', 'graph.allSubjects': 'All subjects', 'graph.relationship': 'Relationship', 'graph.allRelationships': 'All relationships', 'graph.count': '{materials} materials · {links} links', 'graph.loading': 'Loading your material graph…', 'graph.empty': 'Create materials first to see their relationships.', 'graph.unsorted': 'Unsorted', 'graph.openMaterial': 'Open material', 'graph.chat': 'Chat', 'graph.connections': 'Connections', 'graph.noRelationships': 'No saved relationships yet.', 'graph.saveEdit': 'Save edit', 'graph.delete': 'Delete', 'graph.chooseMaterial': 'Choose a material', 'graph.chooseMaterialHint': 'Click a node to inspect its direct relationships.', 'graph.addRelationship': 'Add relationship', 'graph.connectMaterials': 'Connect materials', 'graph.clickFirst': 'Click a material in the graph.', 'graph.clickSecond': 'Click the second material in the graph.', 'graph.relationshipType': 'Relationship type', 'graph.addLink': 'Add link', 'graph.ai': 'AI suggested', 'graph.manual': 'Manual', 'graph.noSummary': 'No summary available.', 'graph.unknownMaterial': 'Unknown material', 'graph.loadError': 'Could not load the graph.', 'graph.addError': 'Could not add relationship.', 'graph.saveError': 'Could not save relationship.', 'graph.deleteError': 'Could not delete relationship.', 'graph.refreshError': 'Could not refresh AI relationships.', 'graph.relationPrerequisite': 'Prerequisite', 'graph.relationBuildsOn': 'Builds on', 'graph.relationRelatedTo': 'Related to', 'graph.relationContrastsWith': 'Contrasts with', 'graph.relationExampleOf': 'Example of',
     'app.manageMaterials': 'Manage Materials',
 
     // Chat context sidebar (right panel)
@@ -214,6 +215,11 @@ const translations = {
     'chat.clearSubject': 'subject "{subject}"',
     'chat.clearGlobal': 'the Global Assistant',
     'chat.clearNotebook': '"{title}"',
+    'chat.attachImage': 'Attach images',
+    'chat.removeImage': 'Remove image',
+    'chat.imageUploadFailed': 'Could not upload image: {message}',
+    'chat.materialPreview': 'Review new material',
+    'chat.savingMaterial': 'Saving…',
 
     // Settings
     'settings.title': 'Settings',
@@ -325,6 +331,7 @@ const translations = {
     'app.aiOnline': 'IA en línea',
     'app.aiOffline': 'IA sin conexión',
     'app.disconnected': 'Desconectado',
+    'graph.title': 'Grafo de materiales', 'graph.subtitle': 'Explora cómo se conectan tus materiales de estudio entre materias.', 'graph.fit': 'Ajustar grafo', 'graph.refresh': 'Actualizar relaciones', 'graph.refreshing': 'Actualizando…', 'graph.subject': 'Materia', 'graph.allSubjects': 'Todas las materias', 'graph.relationship': 'Relación', 'graph.allRelationships': 'Todas las relaciones', 'graph.count': '{materials} materiales · {links} enlaces', 'graph.loading': 'Cargando tu grafo de materiales…', 'graph.empty': 'Crea materiales para ver sus relaciones.', 'graph.unsorted': 'Sin clasificar', 'graph.openMaterial': 'Abrir material', 'graph.chat': 'Chat', 'graph.connections': 'Conexiones', 'graph.noRelationships': 'Aún no hay relaciones guardadas.', 'graph.saveEdit': 'Guardar edición', 'graph.delete': 'Eliminar', 'graph.chooseMaterial': 'Elige un material', 'graph.chooseMaterialHint': 'Haz clic en un nodo para ver sus relaciones directas.', 'graph.addRelationship': 'Añadir relación', 'graph.connectMaterials': 'Conectar materiales', 'graph.clickFirst': 'Haz clic en un material del grafo.', 'graph.clickSecond': 'Haz clic en el segundo material del grafo.', 'graph.relationshipType': 'Tipo de relación', 'graph.addLink': 'Añadir enlace', 'graph.ai': 'Sugerida por IA', 'graph.manual': 'Manual', 'graph.noSummary': 'No hay resumen disponible.', 'graph.unknownMaterial': 'Material desconocido', 'graph.loadError': 'No se pudo cargar el grafo.', 'graph.addError': 'No se pudo añadir la relación.', 'graph.saveError': 'No se pudo guardar la relación.', 'graph.deleteError': 'No se pudo eliminar la relación.', 'graph.refreshError': 'No se pudieron actualizar las relaciones de IA.', 'graph.relationPrerequisite': 'Requisito previo', 'graph.relationBuildsOn': 'Se basa en', 'graph.relationRelatedTo': 'Relacionado con', 'graph.relationContrastsWith': 'Contrasta con', 'graph.relationExampleOf': 'Ejemplo de',
 
     'dash.welcome': '¡Bienvenido de nuevo, {name}!',
     'dash.subtitle': 'Tu base de conocimiento personal está lista. Continúa donde lo dejaste o inicia una nueva sesión de estudio.',
@@ -447,6 +454,11 @@ const translations = {
     'chat.clearSubject': 'la materia "{subject}"',
     'chat.clearGlobal': 'el Asistente Global',
     'chat.clearNotebook': '"{title}"',
+    'chat.attachImage': 'Adjuntar imágenes',
+    'chat.removeImage': 'Eliminar imagen',
+    'chat.imageUploadFailed': 'No se pudo subir la imagen: {message}',
+    'chat.materialPreview': 'Revisar material nuevo',
+    'chat.savingMaterial': 'Guardando…',
 
     'settings.title': 'Ajustes',
     'settings.general': 'General',
@@ -555,6 +567,7 @@ const translations = {
     'app.aiOnline': 'IA en ligne',
     'app.aiOffline': 'IA hors ligne',
     'app.disconnected': 'Déconnecté',
+    'graph.title': 'Graphe des matériels', 'graph.subtitle': 'Explorez les liens entre vos matériels d’étude et vos matières.', 'graph.fit': 'Ajuster le graphe', 'graph.refresh': 'Actualiser les relations', 'graph.refreshing': 'Actualisation…', 'graph.subject': 'Matière', 'graph.allSubjects': 'Toutes les matières', 'graph.relationship': 'Relation', 'graph.allRelationships': 'Toutes les relations', 'graph.count': '{materials} matériels · {links} liens', 'graph.loading': 'Chargement de votre graphe…', 'graph.empty': 'Créez des matériels pour voir leurs relations.', 'graph.unsorted': 'Non classé', 'graph.openMaterial': 'Ouvrir le matériel', 'graph.chat': 'Chat', 'graph.connections': 'Connexions', 'graph.noRelationships': 'Aucune relation enregistrée.', 'graph.saveEdit': 'Enregistrer', 'graph.delete': 'Supprimer', 'graph.chooseMaterial': 'Choisissez un matériel', 'graph.chooseMaterialHint': 'Cliquez sur un nœud pour voir ses relations directes.', 'graph.addRelationship': 'Ajouter une relation', 'graph.connectMaterials': 'Connecter des matériels', 'graph.clickFirst': 'Cliquez sur un matériel dans le graphe.', 'graph.clickSecond': 'Cliquez sur le deuxième matériel.', 'graph.relationshipType': 'Type de relation', 'graph.addLink': 'Ajouter le lien', 'graph.ai': 'Suggérée par IA', 'graph.manual': 'Manuelle', 'graph.noSummary': 'Aucun résumé disponible.', 'graph.unknownMaterial': 'Matériel inconnu', 'graph.loadError': 'Impossible de charger le graphe.', 'graph.addError': 'Impossible d’ajouter la relation.', 'graph.saveError': 'Impossible d’enregistrer la relation.', 'graph.deleteError': 'Impossible de supprimer la relation.', 'graph.refreshError': 'Impossible d’actualiser les relations IA.', 'graph.relationPrerequisite': 'Prérequis', 'graph.relationBuildsOn': 'Construit sur', 'graph.relationRelatedTo': 'Lié à', 'graph.relationContrastsWith': 'Contraste avec', 'graph.relationExampleOf': 'Exemple de',
 
     'dash.welcome': 'Bon retour, {name} !',
     'dash.subtitle': 'Votre base de connaissances personnelle est prête. Reprenez là où vous vous êtes arrêté ou commencez une nouvelle session d\'étude.',
@@ -677,6 +690,11 @@ const translations = {
     'chat.clearSubject': 'la matière "{subject}"',
     'chat.clearGlobal': 'l\'Assistant Global',
     'chat.clearNotebook': '"{title}"',
+    'chat.attachImage': 'Joindre des images',
+    'chat.removeImage': 'Supprimer l’image',
+    'chat.imageUploadFailed': 'Impossible de téléverser l’image : {message}',
+    'chat.materialPreview': 'Vérifier le nouveau matériel',
+    'chat.savingMaterial': 'Enregistrement…',
 
     'settings.title': 'Paramètres',
     'settings.general': 'Général',
@@ -785,6 +803,7 @@ const translations = {
     'app.aiOnline': 'KI online',
     'app.aiOffline': 'KI offline',
     'app.disconnected': 'Getrennt',
+    'graph.title': 'Materialgraph', 'graph.subtitle': 'Entdecke, wie deine Lernmaterialien fachübergreifend verbunden sind.', 'graph.fit': 'Graph einpassen', 'graph.refresh': 'Beziehungen aktualisieren', 'graph.refreshing': 'Aktualisierung…', 'graph.subject': 'Fach', 'graph.allSubjects': 'Alle Fächer', 'graph.relationship': 'Beziehung', 'graph.allRelationships': 'Alle Beziehungen', 'graph.count': '{materials} Materialien · {links} Verbindungen', 'graph.loading': 'Materialgraph wird geladen…', 'graph.empty': 'Erstelle Materialien, um ihre Beziehungen zu sehen.', 'graph.unsorted': 'Unsortiert', 'graph.openMaterial': 'Material öffnen', 'graph.chat': 'Chat', 'graph.connections': 'Verbindungen', 'graph.noRelationships': 'Noch keine Beziehungen gespeichert.', 'graph.saveEdit': 'Änderung speichern', 'graph.delete': 'Löschen', 'graph.chooseMaterial': 'Material auswählen', 'graph.chooseMaterialHint': 'Klicke auf einen Knoten, um direkte Beziehungen zu sehen.', 'graph.addRelationship': 'Beziehung hinzufügen', 'graph.connectMaterials': 'Materialien verbinden', 'graph.clickFirst': 'Klicke auf ein Material im Graphen.', 'graph.clickSecond': 'Klicke auf das zweite Material.', 'graph.relationshipType': 'Beziehungstyp', 'graph.addLink': 'Verbindung hinzufügen', 'graph.ai': 'KI-Vorschlag', 'graph.manual': 'Manuell', 'graph.noSummary': 'Keine Zusammenfassung verfügbar.', 'graph.unknownMaterial': 'Unbekanntes Material', 'graph.loadError': 'Graph konnte nicht geladen werden.', 'graph.addError': 'Beziehung konnte nicht hinzugefügt werden.', 'graph.saveError': 'Beziehung konnte nicht gespeichert werden.', 'graph.deleteError': 'Beziehung konnte nicht gelöscht werden.', 'graph.refreshError': 'KI-Beziehungen konnten nicht aktualisiert werden.', 'graph.relationPrerequisite': 'Voraussetzung', 'graph.relationBuildsOn': 'Baut auf', 'graph.relationRelatedTo': 'Verwandt mit', 'graph.relationContrastsWith': 'Im Gegensatz zu', 'graph.relationExampleOf': 'Beispiel für',
 
     'dash.welcome': 'Willkommen zurück, {name}!',
     'dash.subtitle': 'Ihre persönliche Wissensbasis ist bereit. Setzen Sie fort, wo Sie aufgehört haben, oder starten Sie eine neue Lernsitzung.',
@@ -907,6 +926,11 @@ const translations = {
     'chat.clearSubject': 'das Fach "{subject}"',
     'chat.clearGlobal': 'den Globalen Assistenten',
     'chat.clearNotebook': '"{title}"',
+    'chat.attachImage': 'Bilder anhängen',
+    'chat.removeImage': 'Bild entfernen',
+    'chat.imageUploadFailed': 'Bild konnte nicht hochgeladen werden: {message}',
+    'chat.materialPreview': 'Neues Material prüfen',
+    'chat.savingMaterial': 'Wird gespeichert…',
 
     'settings.title': 'Einstellungen',
     'settings.general': 'Allgemein',
@@ -1015,6 +1039,7 @@ const translations = {
     'app.aiOnline': 'AI 在线',
     'app.aiOffline': 'AI 离线',
     'app.disconnected': '已断开连接',
+    'graph.title': '资料关系图', 'graph.subtitle': '探索学习资料在不同科目之间的联系。', 'graph.fit': '适应图形', 'graph.refresh': '刷新关系', 'graph.refreshing': '刷新中…', 'graph.subject': '科目', 'graph.allSubjects': '所有科目', 'graph.relationship': '关系', 'graph.allRelationships': '所有关系', 'graph.count': '{materials} 个资料 · {links} 条连接', 'graph.loading': '正在加载资料关系图…', 'graph.empty': '先创建资料以查看它们的关系。', 'graph.unsorted': '未分类', 'graph.openMaterial': '打开资料', 'graph.chat': '聊天', 'graph.connections': '连接', 'graph.noRelationships': '尚未保存关系。', 'graph.saveEdit': '保存编辑', 'graph.delete': '删除', 'graph.chooseMaterial': '选择资料', 'graph.chooseMaterialHint': '点击节点查看其直接关系。', 'graph.addRelationship': '添加关系', 'graph.connectMaterials': '连接资料', 'graph.clickFirst': '点击图中的一个资料。', 'graph.clickSecond': '点击第二个资料。', 'graph.relationshipType': '关系类型', 'graph.addLink': '添加连接', 'graph.ai': 'AI 建议', 'graph.manual': '手动', 'graph.noSummary': '暂无摘要。', 'graph.unknownMaterial': '未知资料', 'graph.loadError': '无法加载关系图。', 'graph.addError': '无法添加关系。', 'graph.saveError': '无法保存关系。', 'graph.deleteError': '无法删除关系。', 'graph.refreshError': '无法刷新 AI 关系。', 'graph.relationPrerequisite': '前置知识', 'graph.relationBuildsOn': '建立于', 'graph.relationRelatedTo': '相关', 'graph.relationContrastsWith': '对比', 'graph.relationExampleOf': '示例',
 
     'dash.welcome': '欢迎回来，{name}！',
     'dash.subtitle': '您的个人知识库已准备就绪。继续您上次的学习或开始新的学习会话。',
@@ -1137,6 +1162,11 @@ const translations = {
     'chat.clearSubject': '科目"{subject}"',
     'chat.clearGlobal': '全局助手',
     'chat.clearNotebook': '"{title}"',
+    'chat.attachImage': '附加图片',
+    'chat.removeImage': '移除图片',
+    'chat.imageUploadFailed': '无法上传图片：{message}',
+    'chat.materialPreview': '检查新资料',
+    'chat.savingMaterial': '正在保存…',
 
     'settings.title': '设置',
     'settings.general': '常规',
@@ -1245,6 +1275,7 @@ const translations = {
     'app.aiOnline': 'AI Online',
     'app.aiOffline': 'AI Offline',
     'app.disconnected': 'Terputus',
+    'graph.title': 'Grafik Materi', 'graph.subtitle': 'Jelajahi hubungan materi belajar Anda di berbagai mata pelajaran.', 'graph.fit': 'Sesuaikan grafik', 'graph.refresh': 'Segarkan hubungan', 'graph.refreshing': 'Menyegarkan…', 'graph.subject': 'Mata pelajaran', 'graph.allSubjects': 'Semua mata pelajaran', 'graph.relationship': 'Hubungan', 'graph.allRelationships': 'Semua hubungan', 'graph.count': '{materials} materi · {links} tautan', 'graph.loading': 'Memuat grafik materi…', 'graph.empty': 'Buat materi terlebih dahulu untuk melihat hubungannya.', 'graph.unsorted': 'Belum diklasifikasikan', 'graph.openMaterial': 'Buka materi', 'graph.chat': 'Chat', 'graph.connections': 'Koneksi', 'graph.noRelationships': 'Belum ada hubungan tersimpan.', 'graph.saveEdit': 'Simpan perubahan', 'graph.delete': 'Hapus', 'graph.chooseMaterial': 'Pilih materi', 'graph.chooseMaterialHint': 'Klik node untuk melihat hubungan langsungnya.', 'graph.addRelationship': 'Tambah hubungan', 'graph.connectMaterials': 'Hubungkan materi', 'graph.clickFirst': 'Klik salah satu materi di grafik.', 'graph.clickSecond': 'Klik materi kedua di grafik.', 'graph.relationshipType': 'Jenis hubungan', 'graph.addLink': 'Tambah tautan', 'graph.ai': 'Saran AI', 'graph.manual': 'Manual', 'graph.noSummary': 'Ringkasan tidak tersedia.', 'graph.unknownMaterial': 'Materi tidak dikenal', 'graph.loadError': 'Grafik tidak dapat dimuat.', 'graph.addError': 'Hubungan tidak dapat ditambahkan.', 'graph.saveError': 'Hubungan tidak dapat disimpan.', 'graph.deleteError': 'Hubungan tidak dapat dihapus.', 'graph.refreshError': 'Hubungan AI tidak dapat disegarkan.', 'graph.relationPrerequisite': 'Prasyarat', 'graph.relationBuildsOn': 'Dibangun dari', 'graph.relationRelatedTo': 'Terkait dengan', 'graph.relationContrastsWith': 'Berlawanan dengan', 'graph.relationExampleOf': 'Contoh dari',
 
     'dash.welcome': 'Selamat datang kembali, {name}!',
     'dash.subtitle': 'Basis pengetahuan pribadi Anda sudah siap. Lanjutkan dari yang terakhir atau mulai sesi belajar baru.',
@@ -1367,6 +1398,11 @@ const translations = {
     'chat.clearSubject': 'mata pelajaran "{subject}"',
     'chat.clearGlobal': 'Asisten Global',
     'chat.clearNotebook': '"{title}"',
+    'chat.attachImage': 'Lampirkan gambar',
+    'chat.removeImage': 'Hapus gambar',
+    'chat.imageUploadFailed': 'Gambar tidak dapat diunggah: {message}',
+    'chat.materialPreview': 'Tinjau materi baru',
+    'chat.savingMaterial': 'Menyimpan…',
 
     'settings.title': 'Pengaturan',
     'settings.general': 'Umum',

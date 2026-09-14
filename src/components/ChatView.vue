@@ -54,15 +54,21 @@
                     <ToolCall
                      v-else-if="chunk.type === 'tool'"
                      :tool="chunk.tool"
-                     :params="chunk.params"
-                     :notebookId="props.notebookId"
-                     :onAction="handleToolAction"
+                    :params="chunk.params"
+                    :notebookId="props.notebookId"
+                    :source-message="findTriggeringMessage(index)"
+                    :onAction="handleToolAction"
                      @openFlashcards="e => $emit('openFlashcards', e)"
                      @openQuiz="e => $emit('openQuiz', e)"
                    />
                 </template>
               </template>
               <template v-else>
+                <div v-if="msg.meta?.attachments?.length" class="chat-attachments">
+                  <a v-for="attachment in msg.meta.attachments" :key="attachment.url" :href="attachment.url" target="_blank" rel="noopener">
+                    <img :src="attachment.url" :alt="attachment.name">
+                  </a>
+                </div>
                 <div v-html="citationsService.renderMarkdownWithCitations(msg.text, sourceRegistry).html"></div>
               </template>
               <!-- Sources accordion: shown only for AI messages with citations -->
@@ -96,17 +102,41 @@
       </div>
 
       <div class="chat-input-area">
+        <div v-if="pendingAttachments.length" class="pending-attachments">
+          <div v-for="(attachment, index) in pendingAttachments" :key="attachment.preview" class="pending-attachment">
+            <img :src="attachment.preview" :alt="attachment.name">
+            <button type="button" @click="removeAttachment(index)" :aria-label="t('chat.removeImage')">×</button>
+          </div>
+        </div>
         <form @submit.prevent="sendMessage" class="chat-form">
+          <input ref="imageInput" type="file" accept="image/*" multiple class="hidden" @change="selectImages">
+          <button type="button" class="btn-attach" :title="t('chat.attachImage')" :disabled="isTyping" @click="imageInput?.click()">+</button>
           <input
             v-model="userInput"
             type="text"
             :placeholder="t('chat.placeholder')"
             :disabled="isTyping"
           >
-          <button type="submit" :disabled="!userInput.trim() || isTyping">
+          <button type="submit" :disabled="(!userInput.trim() && !pendingAttachments.length) || isTyping">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 2"></polygon></svg>
           </button>
         </form>
+      </div>
+
+      <div v-if="materialPreview" class="material-preview-backdrop">
+        <div class="material-preview" role="dialog" aria-modal="true">
+          <h3>{{ t('chat.materialPreview') }}</h3>
+          <label>{{ t('create.title') }}<input v-model="materialPreview.title"></label>
+          <label>{{ t('create.subject') }}<input v-model="materialPreview.subject"></label>
+          <label>{{ t('create.material') }}<input v-model="materialPreview.material"></label>
+          <label>{{ t('create.summaryMarkdown') }}<textarea v-model="materialPreview.summary"></textarea></label>
+          <label>{{ t('create.transcription') }}<textarea v-model="materialPreview.transcription"></textarea></label>
+          <p v-if="materialSaveError" class="generation-error">{{ materialSaveError }}</p>
+          <div class="preview-actions">
+            <button @click="materialPreview = null">{{ t('common.cancel') }}</button>
+            <button :disabled="isSavingMaterial" @click="saveGeneratedMaterial">{{ isSavingMaterial ? t('chat.savingMaterial') : t('common.save') }}</button>
+          </div>
+        </div>
       </div>
 
       <SourceViewerModal v-if="activeCite" :cite="activeCite" @close="activeCite = null" />
@@ -133,6 +163,7 @@ import { dbService } from '../services/db'
 import { aiService } from '../services/ai'
 import { citationsService } from '../services/citations'
 import { materialsService } from '../services/materials'
+import { pdfService } from '../services/pdf'
 import { i18n } from '../services/i18n'
 import SourceViewerModal from './SourceViewerModal.vue'
 import ToolCall from './ToolCall.vue'
@@ -142,12 +173,18 @@ const t = i18n.t
 const NL = String.fromCharCode(10)
 
 const props = defineProps(['notebookId', 'subject', 'globalMode'])
+const emit = defineEmits(['back', 'openFlashcards', 'openQuiz', 'openMaterial'])
 const notebook = ref(null)
 const messages = ref([])
 const userInput = ref('')
 const isTyping = ref(false)
 const isThinkingOpen = ref(false)
 const chatWindow = ref(null)
+const imageInput = ref(null)
+const pendingAttachments = ref([])
+const materialPreview = ref(null)
+const isSavingMaterial = ref(false)
+const materialSaveError = ref('')
 
 // ---- Materials tree + selection state -------------------------------------
 const materialsFlat = ref([])
@@ -322,19 +359,53 @@ const buildContextText = () => {
   return list.map(notebookBlock).join(NL + NL + '=====' + NL + NL)
 }
 
+const selectImages = (event) => {
+  const files = Array.from(event.target.files || []).filter(file => file.type.startsWith('image/'))
+  pendingAttachments.value.push(...files.map(file => ({
+    file,
+    name: file.name,
+    preview: URL.createObjectURL(file)
+  })))
+  event.target.value = ''
+}
+
+const removeAttachment = (index) => {
+  const [removed] = pendingAttachments.value.splice(index, 1)
+  if (removed?.preview) URL.revokeObjectURL(removed.preview)
+}
+
+const findTriggeringMessage = (assistantIndex) => {
+  for (let index = assistantIndex - 1; index >= 0; index--) {
+    if (messages.value[index].sender === 'user') return messages.value[index]
+  }
+  return null
+}
+
 const sendMessage = async () => {
   const text = userInput.value.trim()
-  if (!text || isTyping.value) return
+  if ((!text && !pendingAttachments.value.length) || isTyping.value) return
 
+  let attachments = []
+  try {
+    attachments = await Promise.all(pendingAttachments.value.map(item => dbService.uploadChatImage(item.file)))
+  } catch (e) {
+    console.error('Failed to upload chat image:', e)
+    alert(t('chat.imageUploadFailed', { message: e.message || 'unknown error' }))
+    return
+  }
+
+  pendingAttachments.value.forEach(item => URL.revokeObjectURL(item.preview))
+  pendingAttachments.value = []
   userInput.value = ''
-  const userMsg = { sender: 'user', text }
+  const userMsg = { sender: 'user', text, meta: { attachments } }
   messages.value.push(userMsg)
 
   try {
     await dbService.saveChatMessage({
       notebookId: chatScopeId.value,
       role: 'user',
-      content: text
+      content: text,
+      meta: { attachments }
     })
   } catch (e) {
     console.error('Failed to persist user message:', e)
@@ -400,7 +471,7 @@ const sendMessage = async () => {
     };
 
     await aiService.chat(
-      messages.value.map(m => ({ sender: m.sender, text: m.text })),
+      messages.value.map(m => ({ sender: m.sender, text: m.text, attachments: m.meta?.attachments || [] })),
       chatTitle,
       chatType,
       contextText,
@@ -522,7 +593,9 @@ const clearHistory = async () => {
     return { chunks, refs };
   }
 
-const handleToolAction = async ({ tool, params }) => {
+const handleToolAction = async ({ tool, params, kind, sourceMessage }) => {
+  if (tool === 'suggest_generation') return handleGeneration({ kind }, sourceMessage)
+
   if (tool === 'generate_flashcards') {
     if (props.notebookId) {
       try {
@@ -568,6 +641,62 @@ const handleToolAction = async ({ tool, params }) => {
     });
   } else {
     throw new Error(`Unsupported tool: ${tool}`);
+  }
+}
+
+const handleGeneration = async ({ kind }, sourceMessage) => {
+  if (!sourceMessage) throw new Error('No user message is available for generation.')
+
+  const request = {
+    text: sourceMessage.text,
+    attachments: sourceMessage.meta?.attachments || [],
+    contextText: buildContextText()
+  }
+
+  if (kind === 'guide') {
+    const guide = await aiService.generateStudyGuide(request)
+    const meta = {
+      sources: sourceRegistry.value.map(source => ({
+        num: source.num,
+        name: source.name,
+        type: source.type,
+        url: source.url,
+        notebookTitle: source.notebookTitle
+      }))
+    }
+    messages.value.push({ sender: 'ai', text: guide, meta })
+    await dbService.saveChatMessage({ notebookId: chatScopeId.value, role: 'assistant', content: guide, meta })
+    await pdfService.exportStudyGuide({
+      markdown: guide,
+      title: sourceMessage.text,
+      sourceRegistry: sourceRegistry.value
+    })
+    await scrollToBottom()
+    return
+  }
+
+  if (kind === 'material') {
+    materialSaveError.value = ''
+    materialPreview.value = await aiService.generateMaterialFromChat(request)
+    return
+  }
+
+  throw new Error('Unsupported generation choice.')
+}
+
+const saveGeneratedMaterial = async () => {
+  if (!materialPreview.value) return
+
+  isSavingMaterial.value = true
+  materialSaveError.value = ''
+  try {
+    const saved = await dbService.saveNotebook(materialPreview.value)
+    materialPreview.value = null
+    emit('openMaterial', saved.id)
+  } catch (e) {
+    materialSaveError.value = e.message || 'Failed to save material.'
+  } finally {
+    isSavingMaterial.value = false
   }
 }
 
@@ -865,6 +994,124 @@ const splitHtmlIntoLines = (html) => {
 .chat-form button:not(:disabled):hover {
   transform: scale(1.05);
   box-shadow: 0 0 15px rgba(99, 102, 241, 0.4);
+}
+
+.hidden {
+  display: none;
+}
+
+.btn-attach {
+  flex: 0 0 auto;
+  font-size: 1.35rem;
+}
+
+.pending-attachments {
+  max-width: 800px;
+  margin: 0 auto 0.6rem;
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.pending-attachment {
+  position: relative;
+}
+
+.pending-attachment img,
+.chat-attachments img {
+  width: 64px;
+  height: 64px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid var(--border-light);
+}
+
+.pending-attachment button {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 0;
+  background: #ef4444;
+  color: white;
+  cursor: pointer;
+}
+
+.chat-attachments {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.45rem;
+}
+
+.material-preview-backdrop {
+  backdrop-filter: blur(6px);
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.6);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.material-preview {
+  width: min(720px, 100%);
+  max-height: 90vh;
+  overflow: auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: 14px;
+  padding: 1.2rem;
+  color: var(--text-primary);
+}
+
+.material-preview label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-top: 0.7rem;
+}
+
+.material-preview input,
+.material-preview textarea {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-light);
+  color: white;
+  border-radius: 7px;
+  padding: 0.55rem;
+}
+
+.material-preview textarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.preview-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.preview-actions button {
+  border: 1px solid var(--border-light);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  padding: 0.5rem 0.8rem;
+  cursor: pointer;
+}
+
+.preview-actions button:last-child {
+  background: var(--accent-gradient);
+  border-color: transparent;
+}
+
+.generation-error {
+  color: #f87171;
 }
 
 /* Sidebar transitions */

@@ -51,10 +51,18 @@ export const dbService = {
     return publicUrl;
   },
 
+  async uploadChatImage(file) {
+    if (!file?.type?.startsWith('image/')) throw new Error('Only image attachments are supported.')
+    const userId = await this.getUserId()
+    const url = await this.uploadSource(userId, file)
+    return { name: file.name, type: file.type, url }
+  },
+
   async saveNotebook(notebook, originalFiles = []) {
     const userId = await this.getUserId()
     
-    const sourcesWithUrls = [];
+    // Chat-generated notebooks already contain securely uploaded source URLs.
+    const sourcesWithUrls = originalFiles.length ? [] : [...(notebook.sources || [])];
     
     // Upload original files to storage
     for (let i = 0; i < originalFiles.length; i++) {
@@ -138,6 +146,116 @@ export const dbService = {
 
     if (error) throw error
     return data
+  },
+
+  async getMaterialRelationships() {
+    const userId = await this.getUserId()
+    const { data, error } = await supabase
+      .from('material_relationships')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: true })
+
+    if (error) throw error
+    return data || []
+  },
+
+  async createMaterialRelationship({ sourceNotebookId, targetNotebookId, relationType, origin = 'manual', confidence = null }) {
+    if (!sourceNotebookId || !targetNotebookId || sourceNotebookId === targetNotebookId) {
+      throw new Error('Choose two different materials.')
+    }
+
+    const userId = await this.getUserId()
+    const { data, error } = await supabase
+      .from('material_relationships')
+      .upsert({
+        user_id: userId,
+        source_notebook_id: sourceNotebookId,
+        target_notebook_id: targetNotebookId,
+        relation_type: relationType,
+        origin,
+        confidence,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id,source_notebook_id,target_notebook_id,relation_type' })
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  },
+
+  async updateMaterialRelationship(id, { sourceNotebookId, targetNotebookId, relationType }) {
+    const userId = await this.getUserId()
+    const updates = { origin: 'manual', updated_at: new Date().toISOString() }
+    if (sourceNotebookId) updates.source_notebook_id = sourceNotebookId
+    if (targetNotebookId) updates.target_notebook_id = targetNotebookId
+    if (relationType) updates.relation_type = relationType
+
+    const { data, error } = await supabase
+      .from('material_relationships')
+      .update(updates)
+      .eq('id', id)
+      .eq('user_id', userId)
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  },
+
+  async deleteMaterialRelationship(id) {
+    const userId = await this.getUserId()
+    const { error } = await supabase
+      .from('material_relationships')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId)
+
+    if (error) throw error
+  },
+
+  async replaceAiMaterialRelationships(sourceNotebookId, relationships) {
+    const userId = await this.getUserId()
+    const { data: manualLinks, error: manualError } = await supabase
+      .from('material_relationships')
+      .select('target_notebook_id, relation_type')
+      .eq('user_id', userId)
+      .eq('source_notebook_id', sourceNotebookId)
+      .eq('origin', 'manual')
+
+    if (manualError) throw manualError
+
+    const manualKeys = new Set((manualLinks || []).map(link => `${link.target_notebook_id}:${link.relation_type}`))
+    const { error: deleteError } = await supabase
+      .from('material_relationships')
+      .delete()
+      .eq('user_id', userId)
+      .eq('source_notebook_id', sourceNotebookId)
+      .eq('origin', 'ai')
+
+    if (deleteError) throw deleteError
+
+    const rows = relationships
+      .filter(relationship => !manualKeys.has(`${relationship.targetNotebookId}:${relationship.relationType}`))
+      .map(relationship => ({
+        user_id: userId,
+        source_notebook_id: sourceNotebookId,
+        target_notebook_id: relationship.targetNotebookId,
+        relation_type: relationship.relationType,
+        origin: 'ai',
+        confidence: relationship.confidence ?? null,
+        updated_at: new Date().toISOString()
+      }))
+
+    if (!rows.length) return []
+
+    const { data, error } = await supabase
+      .from('material_relationships')
+      .upsert(rows, { onConflict: 'user_id,source_notebook_id,target_notebook_id,relation_type' })
+      .select()
+
+    if (error) throw error
+    return data || []
   },
 
   async deleteNotebook(id) {

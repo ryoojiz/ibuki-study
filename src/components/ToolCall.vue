@@ -50,6 +50,24 @@
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
       </div>
     </div>
+    <div v-else-if="tool === 'suggest_generation'" class="tool-row" :class="{ success: isSuccess, error: hasError }">
+      <div class="tool-left">
+        <div class="tool-icon">✦</div>
+        <div class="tool-info">
+          <div class="tool-title">Create Learning Resource</div>
+          <div class="tool-status" :class="{ 'loading-gradient': isLoading }">
+            <span v-if="isLoading">Generating {{ selectedKind === 'guide' ? 'Study Guide' : 'Material' }}</span>
+            <span v-else-if="isSuccess">{{ selectedKind === 'guide' ? 'Printable PDF Generated' : 'Material Preview Ready' }}</span>
+            <span v-else-if="hasError" class="error-text">Tool Failed</span>
+            <span v-else>Choose what to create</span>
+          </div>
+          <div v-if="!isLoading && !isSuccess" class="tool-choice-actions">
+            <button @click="runGeneration('guide')">Study Guide</button>
+            <button @click="runGeneration('material')">Material</button>
+          </div>
+        </div>
+      </div>
+    </div>
     <div v-else class="tool-row unknown-tool">
       <div class="tool-info">Unknown tool: {{ tool }}</div>
     </div>
@@ -65,6 +83,7 @@ const props = defineProps({
   tool: String,
   params: Object,
   notebookId: String,
+  sourceMessage: Object,
   onAction: Function
 })
 
@@ -73,6 +92,28 @@ const emit = defineEmits(['actionCompleted', 'openFlashcards', 'openQuiz'])
 const isLoading = ref(false)
 const isSuccess = ref(false)
 const hasError = ref(false)
+const selectedKind = ref(null)
+
+const runGeneration = async (kind) => {
+  if (!props.onAction || isLoading.value) return
+  isLoading.value = true
+  hasError.value = false
+  selectedKind.value = kind
+  try {
+    await props.onAction({
+      tool: 'suggest_generation',
+      params: props.params,
+      kind,
+      sourceMessage: props.sourceMessage
+    })
+    isSuccess.value = true
+  } catch (e) {
+    console.error('Generation tool failed:', e)
+    hasError.value = true
+  } finally {
+    isLoading.value = false
+  }
+}
 
 const handleAction = async () => {
   if (props.tool === 'generate_flashcards' || props.tool === 'generate_quiz') {
@@ -195,5 +236,26 @@ onMounted(() => {
 
 .unknown-tool {
   opacity: 0.5;
+}
+
+.tool-choice-actions {
+  display: flex;
+  gap: 0.45rem;
+  margin-top: 0.45rem;
+}
+
+.tool-choice-actions button {
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  cursor: pointer;
+  padding: 0.35rem 0.55rem;
+  font: inherit;
+  font-size: 0.8rem;
+}
+
+.tool-choice-actions button:hover {
+  background: rgba(255, 255, 255, 0.16);
 }
 </style>
