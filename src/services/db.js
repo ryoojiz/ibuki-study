@@ -402,6 +402,7 @@ export const dbService = {
       .insert({
         user_id: userId,
         notebook_id: chatMsg.notebookId || null,
+        conversation_id: chatMsg.conversationId || null,
         role: chatMsg.role,
         content: chatMsg.content,
         meta: chatMsg.meta || {},
@@ -448,6 +449,41 @@ export const dbService = {
     if (error) throw error
   },
 
+  // Conversation sessions are scoped to a notebook, a subject, or global chat.
+  async getConversations(scopeKey) {
+    const userId = await this.getUserId()
+    const { data, error } = await supabase.from('conversations').select('*').eq('user_id', userId).eq('scope_key', scopeKey).order('updated_at', { ascending: false })
+    if (error) throw error
+    return data || []
+  },
+
+  async createConversation(scopeKey, title = 'New conversation') {
+    const userId = await this.getUserId()
+    const now = new Date().toISOString()
+    const { data, error } = await supabase.from('conversations').insert({ user_id: userId, scope_key: scopeKey, title, created_at: now, updated_at: now }).select().single()
+    if (error) throw error
+    return data
+  },
+
+  async updateConversation(id, updates) {
+    const userId = await this.getUserId()
+    const { data, error } = await supabase.from('conversations').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId).select().single()
+    if (error) throw error
+    return data
+  },
+
+  async getConversationMessages(conversationId) {
+    const userId = await this.getUserId()
+    const { data, error } = await supabase.from('chats').select('*').eq('user_id', userId).eq('conversation_id', conversationId).order('created_at', { ascending: true })
+    if (error) throw error
+    return data || []
+  },
+
+  async deleteConversation(id) {
+    const userId = await this.getUserId()
+    const { error } = await supabase.from('conversations').delete().eq('id', id).eq('user_id', userId)
+    if (error) throw error
+  },
   // -----------------------------------------------------------------------
   // Materials tree (unified relational hierarchy: subject roots -> materials)
   // -----------------------------------------------------------------------

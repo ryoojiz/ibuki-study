@@ -80,7 +80,7 @@
         </div>
       </template>
       <template v-else>
-        <div v-for="nb in notebooks" :key="nb.id" class="notebook-card" @click="$emit('selectNotebook', nb.id)">
+        <div v-for="nb in filteredNotebooks" :key="nb.id" class="notebook-card" @click="$emit('selectNotebook', nb.id)">
           <div class="notebook-tags">
             <span class="tag tag-material">{{ nb.material }}</span>
           </div>
@@ -96,10 +96,10 @@
             <span>{{ formatDate(nb.updated_at) }}</span>
           </div>
         </div>
-        <div v-if="notebooks.length === 0" class="empty-state">
+        <div v-if="filteredNotebooks.length === 0" class="empty-state">
           <div class="empty-icon">📝</div>
-          <h3>{{ t('subject.noNotebooks') }}</h3>
-          <p>{{ t('subject.noNotebooksDesc', { subject }) }}</p>
+          <h3>{{ searchQuery ? t('dash.noNotebooks') : t('subject.noNotebooks') }}</h3>
+          <p>{{ searchQuery ? t('dash.noNotebooksDesc') : t('subject.noNotebooksDesc', { subject }) }}</p>
         </div>
       </template>
     </div>
@@ -120,7 +120,7 @@ import { i18n } from '../services/i18n'
 import QuizPanel from './QuizPanel.vue'
 
 const t = i18n.t
-const props = defineProps(['subject'])
+const props = defineProps(['subject', 'searchQuery'])
 const emit = defineEmits(['selectNotebook', 'openChat'])
 
 const loading = ref(true)
@@ -140,6 +140,15 @@ const loadData = async () => {
     loading.value = false
   }
 }
+
+const filteredNotebooks = computed(() => {
+  const q = String(props.searchQuery || '').trim().toLocaleLowerCase()
+  if (!q) return notebooks.value
+  return notebooks.value.filter(n =>
+    [n.title, n.subject, n.material, n.summary]
+      .some(value => String(value || '').toLocaleLowerCase().includes(q))
+  )
+})
 
 const materials = computed(() => {
   return [...new Set(notebooks.value.map(n => n.material).filter(Boolean))]

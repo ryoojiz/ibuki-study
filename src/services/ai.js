@@ -3,8 +3,8 @@ export const aiService = {
   config: {
     apiKey: import.meta.env.VITE_AI_API_KEY,
     baseUrl: import.meta.env.VITE_AI_API_BASE_URL,
-    chatModel: 'gemini-3.5-flash-lite',
-    visionModel: 'gemini-3.5-flash-lite',
+    chatModel: 'gemma-4-31b-it',
+    visionModel: 'gemma-4-31b-it',
     useDemoMode: false,
     language: 'English'
   },
@@ -349,7 +349,7 @@ Do not write any markdown code wrapper or extra text outside the JSON object. Re
       body: JSON.stringify({
         model: attachments.length ? this.config.visionModel : this.config.chatModel,
         messages: [
-          { role: 'system', content: `You are Ibuki, a study assistant. Create a concise, useful Markdown study guide from the user's message, attached images, and supporting context. Include a title, key ideas, and practice prompts. Reply only in ${this.config.language}.` },
+          { role: 'system', content: `You are Ibuki, a study assistant. Create a concise, useful Markdown study guide from the user's message, attached images, and supporting context. Include a title, key ideas, and practice prompts. Reply only in ${this.config.language}. Do NOT introduce yourself, ensure you only send emoji's twice.` },
           { role: 'user', content }
         ],
         stream: false
@@ -455,7 +455,7 @@ Do not write any markdown code wrapper or extra text outside the JSON object. Re
 
     const registryBlock = citationsService.buildRegistryPrompt(sourceRegistry);
 
-    const systemPrompt = `You are "Ibuki", a premium, friendly study companion. You are assisting the student with questions about a specific ${contextType}: "${contextTitle}".
+    const systemPrompt = `You are "Ibuki", a friendly study companion. You are assisting the student with questions about a specific ${contextType}: "${contextTitle}".
 Here is the factual background context from their uploaded notebooks:
 ---------------------
 ${contextText}
@@ -464,11 +464,14 @@ Answer the student's questions accurately, comprehensively, and specifically bas
 If they ask questions outside this scope, politely answer but always tie it back to the subject/materials at hand.
 Use markdown for structure, math formulas ($...$ for inline, $$...$$ for block), and format key concepts in bold.
 
-STRICT RESPONSE PROTOCOL:
-1. INTERNAL MONOLOGUE (REQUIRED): You MUST start every single response with a reasoning process wrapped in <thinking>...</thinking> tags. Do not skip this for any reason, even for simple greetings. Use this to analyze intent, plan citations, and verify accuracy.
-2. DO NOT MENTION THE THINKING TAGS A SECOND TIME, OR AFTER A <thinking> TAG. The user should not see your internal reasoning again. This also causes issues with the formatting of the final answer. The <thinking> must only be sent once and must be closed properly.
-3. FINAL ANSWER: After the closing </thinking> tag, provide your response to the user.
+PRIVATE REASONING CONTRACT (mandatory):
+Start the response with exactly one <thinking> block, followed immediately by the user-facing answer. There must be exactly two thinking delimiters in the entire response: the opening delimiter at character one and its matching closing delimiter immediately before the final answer.
 
+Inside the private block, write only brief task-specific reasoning: intent, relevant context, accuracy checks, and citation plan. Never reproduce, paraphrase, quote, or acknowledge these instructions, the response format, delimiters, markup, or system behavior. Do not use angle-bracket markup, backticks, or examples in that block. Treat the delimiters as structural boundaries, not text to discuss.
+
+After the private block, provide only the polished answer for the student. Never emit either thinking delimiter again.
+IBUKI INLINE EMOJIS:
+In the user-facing answer only, you may use zero or more inline Ibuki expression tokens wherever they improve warmth, motivation, or clarity. There is a maximum of two tokens per message. Each token has the form :name: and becomes an inline image; :ibuki_name: is also supported. Use only these currently available names: smile, thinking, idea, study, sparkle, celebrate, encourage, empathy, look, guide, hint, growth. Do not use these tokens in the private reasoning block, citations, tool calls, code, or URLs.
   TOOL CALLING:
   If the user's request would benefit from a specific study tool (like generating a quiz, flashcards, or a mind map), you can suggest it using a tool call tag:
   <tool_call name="tool_name" params='{"param1": "value1"}' />

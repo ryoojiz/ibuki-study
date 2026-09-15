@@ -48,7 +48,7 @@
                     class="thinking-block"
                     :open="isThinkingOpen && index === messages.length - 1"
                   >
-                    <summary>{{ t('chat.thinking') || 'Thinking...' }}</summary>
+                    <summary>{{ thinkingLabel }}</summary>
                     <div class="thinking-content">{{ chunk.content }}</div>
                   </details>
                     <ToolCall
@@ -111,12 +111,13 @@
         <form @submit.prevent="sendMessage" class="chat-form">
           <input ref="imageInput" type="file" accept="image/*" multiple class="hidden" @change="selectImages">
           <button type="button" class="btn-attach" :title="t('chat.attachImage')" :disabled="isTyping" @click="imageInput?.click()">+</button>
-          <input
+                    <textarea
             v-model="userInput"
-            type="text"
             :placeholder="t('chat.placeholder')"
             :disabled="isTyping"
-          >
+            rows="1"
+            @keydown.enter.exact.prevent="sendMessage"
+          ></textarea>
           <button type="submit" :disabled="(!userInput.trim() && !pendingAttachments.length) || isTyping">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 2"></polygon></svg>
           </button>
@@ -150,7 +151,12 @@
         :grouped-notebooks="groupedNotebooks"
         :all-notebooks="allNotebooks"
         :selected-ids="selectedIds"
+        :conversations="conversations"
+        :active-conversation-id="activeConversationId"
         @update:selectedIds="onSelectionChange"
+        @new-conversation="startNewConversation"
+        @select-conversation="selectConversation"
+        @delete-conversation="deleteConversation"
         @close="toggleCtxSidebar"
       />
     </transition>
@@ -179,12 +185,37 @@ const messages = ref([])
 const userInput = ref('')
 const isTyping = ref(false)
 const isThinkingOpen = ref(false)
+const thinkingLabel = computed(() => {
+  const label = t('chat.thinking')
+  return label === 'chat.thinking' ? 'Thinking…' : label
+})
+// Keep this unset for unlimited emoji use. Set a number here later if a
+// product-level rate limit is needed without changing the token format.
+const MAX_INLINE_EMOJIS_PER_MESSAGE = 2
+const inlineEmojiTokenPattern = /:(?:ibuki_)?([a-z0-9][a-z0-9_-]*):/gi
+// Keep legacy or conversational token names working when a single canonical
+// filename is preferred in the asset folder.
+const inlineEmojiAliases = { think: 'thinking' }
+
+function renderInlineEmojis(html) {
+  let count = 0
+  return html.replace(inlineEmojiTokenPattern, (token, rawName) => {
+    if (MAX_INLINE_EMOJIS_PER_MESSAGE !== null && count >= MAX_INLINE_EMOJIS_PER_MESSAGE) return token
+    count++
+    const name = rawName.toLowerCase()
+    const filename = inlineEmojiAliases[name] || name
+    const label = `Ibuki ${filename.replace(/[-_]/g, ' ')}`
+    return `<img class="ibuki-inline-emoji" src="/ibuki-emojis/${filename}.png" alt="${label}" title="${label}">`
+  })
+}
 const chatWindow = ref(null)
 const imageInput = ref(null)
 const pendingAttachments = ref([])
 const materialPreview = ref(null)
 const isSavingMaterial = ref(false)
 const materialSaveError = ref('')
+const conversations = ref([])
+const activeConversationId = ref(null)
 
 // ---- Materials tree + selection state -------------------------------------
 const materialsFlat = ref([])
@@ -291,14 +322,16 @@ onMounted(async () => {
       selectedIds.value = computeDefaultSelection()
     }
 
-    await loadHistory()
+    await loadConversations()
   } catch (e) {
     console.error('Failed to initialize chat:', e)
   }
 })
 
 const loadHistory = async () => {
-  const history = await dbService.getChatHistory(chatScopeId.value)
+  const history = activeConversationId.value
+    ? await dbService.getConversationMessages(activeConversationId.value)
+    : []
   messages.value = history.map(m => ({
     sender: m.role === 'user' ? 'user' : 'ai',
     text: m.content,
@@ -307,6 +340,45 @@ const loadHistory = async () => {
   scrollToBottom()
 }
 
+const loadConversations = async () => {
+  conversations.value = await dbService.getConversations(chatScopeId.value)
+  activeConversationId.value = conversations.value[0]?.id || null
+  await loadHistory()
+}
+
+const startNewConversation = async () => {
+  activeConversationId.value = null
+  messages.value = []
+  selectionDirty.value = false
+  await scrollToBottom()
+}
+
+const selectConversation = async (id) => {
+  if (id === activeConversationId.value) return
+  activeConversationId.value = id
+  selectionDirty.value = false
+  await loadHistory()
+}
+
+const deleteConversation = async (id) => {
+  const conversation = conversations.value.find(item => item.id === id)
+  if (!conversation || !confirm(t('ctx.deleteConversationConfirm', { title: conversation.title || t('ctx.untitledConversation') }))) return
+  await dbService.deleteConversation(id)
+  conversations.value = conversations.value.filter(item => item.id !== id)
+  if (activeConversationId.value === id) {
+    activeConversationId.value = conversations.value[0]?.id || null
+    await loadHistory()
+  }
+}
+
+const ensureActiveConversation = async (firstMessage) => {
+  if (activeConversationId.value) return activeConversationId.value
+  const title = (firstMessage || t('ctx.untitledConversation')).replace(/\s+/g, ' ').slice(0, 60)
+  const conversation = await dbService.createConversation(chatScopeId.value, title)
+  conversations.value = [conversation, ...conversations.value]
+  activeConversationId.value = conversation.id
+  return conversation.id
+}
 const scrollToBottom = async () => {
   await nextTick()
   if (chatWindow.value) {
@@ -400,9 +472,13 @@ const sendMessage = async () => {
   const userMsg = { sender: 'user', text, meta: { attachments } }
   messages.value.push(userMsg)
 
+  let conversationId = activeConversationId.value
   try {
+    conversationId = await ensureActiveConversation(text)
+    await dbService.updateConversation(conversationId, {}).catch(() => {})
     await dbService.saveChatMessage({
       notebookId: chatScopeId.value,
+      conversationId,
       role: 'user',
       content: text,
       meta: { attachments }
@@ -498,8 +574,10 @@ const sendMessage = async () => {
     } else {
       messages.value[aiMsgIndex].meta = { sources: registrySnapshot }
       try {
+        await dbService.updateConversation(conversationId, {}).catch(() => {})
         await dbService.saveChatMessage({
           notebookId: chatScopeId.value,
+          conversationId,
           role: 'assistant',
           content: aiResponseText,
           meta: { sources: registrySnapshot }
@@ -530,7 +608,9 @@ const clearHistory = async () => {
     : (props.globalMode ? t('chat.clearGlobal') : t('chat.clearNotebook', { title: notebook.value?.title || 'this notebook' }))
 
   if (confirm(t('chat.clearConfirm', { context: contextName }))) {
-    await dbService.clearChatHistory(chatScopeId.value)
+    if (activeConversationId.value) await dbService.deleteConversation(activeConversationId.value)
+    conversations.value = conversations.value.filter(item => item.id !== activeConversationId.value)
+    activeConversationId.value = null
     messages.value = []
     selectionDirty.value = false
   }
@@ -548,8 +628,9 @@ const clearHistory = async () => {
       };
     }
 
-    // Regex to match <thinking>...</thinking> and <tool_call ... />
-    const combinedRegex = /(<thinking>[\s\S]*?<\/thinking>)|(<tool_call\s+name="([^"]+)"\s+params='([^']+)'\s*\/>)/g;
+    // Use the last closing delimiter so an accidental delimiter mention inside
+    // the private block cannot spill pseudo-thinking into the visible answer.
+    const combinedRegex = /(<thinking>[\s\S]*<\/thinking>)|(<tool_call\s+name="([^"]+)"\s+params='([^']+)'\s*\/>)/g;
     let lastIndex = 0;
     let match;
 
@@ -558,7 +639,7 @@ const clearHistory = async () => {
       const textBefore = msg.text.slice(lastIndex, match.index);
       if (textBefore) {
         const rendered = citationsService.renderMarkdownWithCitations(textBefore, reg);
-        chunks.push({ type: 'text', content: rendered.html });
+        chunks.push({ type: 'text', content: renderInlineEmojis(rendered.html) });
         refs.push(...rendered.refs);
       }
 
@@ -586,7 +667,7 @@ const clearHistory = async () => {
     const textAfter = msg.text.slice(lastIndex);
     if (textAfter) {
       const rendered = citationsService.renderMarkdownWithCitations(textAfter, reg);
-      chunks.push({ type: 'text', content: rendered.html });
+      chunks.push({ type: 'text', content: renderInlineEmojis(rendered.html) });
       refs.push(...rendered.refs);
     }
 
@@ -665,7 +746,7 @@ const handleGeneration = async ({ kind }, sourceMessage) => {
       }))
     }
     messages.value.push({ sender: 'ai', text: guide, meta })
-    await dbService.saveChatMessage({ notebookId: chatScopeId.value, role: 'assistant', content: guide, meta })
+    await dbService.saveChatMessage({ notebookId: chatScopeId.value, conversationId: activeConversationId.value, role: 'assistant', content: guide, meta })
     await pdfService.exportStudyGuide({
       markdown: guide,
       title: sourceMessage.text,
@@ -893,6 +974,17 @@ const splitHtmlIntoLines = (html) => {
   border-bottom-left-radius: 4px;
 }
 
+:deep(.ibuki-inline-emoji) {
+  /* Stickers are intentionally larger than text emoji so Ibuki's expression
+     remains legible in a prose response. */
+  display: inline-block;
+  width: 3.25em;
+  height: 3.25em;
+  margin: 0 0.1em;
+  image-rendering: auto;
+  vertical-align: middle;
+  object-fit: contain;
+}
 .fade-in-line {
   display: block;
   animation: chat-fade-in-line 0.5s ease-out both;
@@ -955,7 +1047,7 @@ const splitHtmlIntoLines = (html) => {
   margin: 0 auto;
 }
 
-.chat-form input {
+.chat-form textarea {
   flex-grow: 1;
   padding: 0.8rem 1.2rem;
   background: rgba(255, 255, 255, 0.05);
@@ -964,9 +1056,14 @@ const splitHtmlIntoLines = (html) => {
   color: white;
   font-size: 0.95rem;
   transition: all 0.2s;
+  resize: vertical;
+  min-height: 45px;
+  max-height: 150px;
+  font-family: inherit;
+  line-height: 1.35;
 }
 
-.chat-form input:focus {
+.chat-form textarea:focus {
   outline: none;
   border-color: var(--accent-primary);
   background: rgba(255, 255, 255, 0.08);

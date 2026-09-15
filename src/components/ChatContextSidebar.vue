@@ -4,7 +4,7 @@
       <button :class="['ctx-tab', { active: activeTab === 'sources' }]" @click="activeTab = 'sources'">
         {{ t('ctx.tabSources') }}
       </button>
-      <button class="ctx-tab ctx-tab-disabled" :title="t('ctx.historySoon')">
+      <button :class="['ctx-tab', { active: activeTab === 'history' }]" @click="activeTab = 'history'">
         {{ t('ctx.tabHistory') }}
       </button>
       <button class="ctx-close" @click="$emit('close')" :title="t('ctx.hide')">
@@ -65,10 +65,15 @@
       </div>
     </template>
 
-    <div v-else class="ctx-history-placeholder">
-      <div class="empty-icon">🕘</div>
-      <h3>{{ t('ctx.tabHistory') }}</h3>
-      <p>{{ t('ctx.historySoon') }}</p>
+    <div v-else class="ctx-history">
+      <button class="ctx-new-conversation" @click="$emit('newConversation')">+ {{ t('ctx.newConversation') }}</button>
+      <p v-if="!conversations.length" class="ctx-empty">{{ t('ctx.noConversations') }}</p>
+      <div v-else class="ctx-conversation-list">
+        <div v-for="conversation in conversations" :key="conversation.id" :class="['ctx-conversation', { active: conversation.id === activeConversationId }]">
+          <button class="ctx-conversation-select" @click="$emit('selectConversation', conversation.id)"><span>{{ conversation.title || t('ctx.untitledConversation') }}</span><small>{{ formatDate(conversation.updated_at) }}</small></button>
+          <button class="ctx-conversation-delete" :title="t('common.delete')" @click="$emit('deleteConversation', conversation.id)">&times;</button>
+        </div>
+      </div>
     </div>
   </aside>
 </template>
@@ -85,10 +90,12 @@ const props = defineProps({
   groupedNotebooks: { type: Object, required: true }, // Map<materialId|null, notebook[]>
   allNotebooks: { type: Array, default: () => [] },
   selectedIds: { type: Object, required: true }, // Set<notebookId>
+  conversations: { type: Array, default: () => [] },
+  activeConversationId: { type: String, default: null },
   open: { type: Boolean, default: true }
 })
 
-const emit = defineEmits(['update:selectedIds', 'close'])
+const emit = defineEmits(['update:selectedIds', 'close', 'newConversation', 'selectConversation', 'deleteConversation'])
 
 const activeTab = ref('sources')
 const searchQuery = ref('')
@@ -210,6 +217,11 @@ function selectAll() {
 function clearAll() {
   emit('update:selectedIds', new Set())
 }
+
+function formatDate(value) {
+  if (!value) return ''
+  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' }).format(new Date(value))
+}
 </script>
 
 <style scoped>
@@ -245,11 +257,6 @@ function clearAll() {
 .ctx-tab.active {
   color: white;
   border-bottom-color: var(--accent-primary);
-}
-
-.ctx-tab-disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
 }
 
 .ctx-close {
@@ -316,19 +323,16 @@ function clearAll() {
 }
 .ctx-btn:hover { color: white; border-color: var(--accent-primary); }
 
-.ctx-history-placeholder {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.4rem;
-  color: var(--text-muted);
-  padding: 2rem 1rem;
-  text-align: center;
-}
-.ctx-history-placeholder h3 { color: var(--text-secondary); font-size: 1rem; margin: 0; }
-.ctx-history-placeholder p { font-size: 0.78rem; margin: 0; }
+.ctx-history { flex: 1; display: flex; flex-direction: column; gap: 0.75rem; padding: 0.75rem; }
+.ctx-new-conversation { border: 1px solid var(--accent-primary); background: rgba(99, 102, 241, 0.12); color: white; border-radius: 8px; padding: 0.55rem; cursor: pointer; font-size: 0.82rem; }
+.ctx-conversation-list { display: flex; flex-direction: column; gap: 0.3rem; overflow-y: auto; }
+.ctx-conversation { display: flex; align-items: center; border: 1px solid transparent; border-radius: 8px; }
+.ctx-conversation.active { background: rgba(99, 102, 241, 0.14); border-color: rgba(99, 102, 241, 0.45); }
+.ctx-conversation-select { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 0.18rem; text-align: left; background: transparent; color: var(--text-primary); border: 0; padding: 0.55rem; cursor: pointer; overflow: hidden; }
+.ctx-conversation-select span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.82rem; }
+.ctx-conversation-select small { color: var(--text-muted); font-size: 0.68rem; }
+.ctx-conversation-delete { border: 0; background: transparent; color: var(--text-muted); font-size: 1.2rem; padding: 0.35rem 0.55rem; cursor: pointer; }
+.ctx-conversation-delete:hover { color: var(--danger-color); }
 </style>
 
 <!-- Unscoped: tree rows are rendered by the TreeNode functional component, which

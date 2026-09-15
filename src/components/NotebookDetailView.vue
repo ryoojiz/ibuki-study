@@ -83,7 +83,7 @@
         </div>
 
         <div v-else-if="activeTab === 'sources'" class="sources-gallery">
-          <div v-for="(src, index) in notebook?.sources" :key="index" class="gallery-card">
+          <div v-for="(src, index) in filteredSources" :key="index" class="gallery-card">
             <div style="padding: 0.5rem; font-size: 0.8rem; color: var(--text-secondary); border-bottom: 1px solid var(--border-light)">
               {{ t('detail.sourceNum', { n: index + 1 }) }}
             </div>
@@ -93,6 +93,10 @@
               </a>
               <span v-else>{{ src.name }}</span>
             </div>
+          </div>
+          <div v-if="filteredSources.length === 0 && (searchQuery || '').trim()" class="empty-state">
+            <div class="empty-icon">📝</div>
+            <h3>{{ t('detail.noSourceMatch') }}</h3>
           </div>
         </div>
       </div>
@@ -158,7 +162,7 @@ import MaterialPicker from './MaterialPicker.vue'
 import { materialsService } from '../services/materials'
 
 const t = i18n.t
-const props = defineProps(['notebookId', 'initialTab'])
+const props = defineProps(['notebookId', 'initialTab', 'searchQuery'])
 const emit = defineEmits(['notebookDeleted', 'openChat', 'openFlashcards', 'back', 'openSubject'])
 const notebook = ref(null)
 const activeTab = ref(props.initialTab || 'summary')
@@ -197,6 +201,14 @@ const summaryView = computed(() =>
 const transcriptionView = computed(() =>
   citationsService.renderMarkdownWithCitations(notebook.value?.transcription, sourceRegistry.value)
 )
+
+// Header search filters the sources gallery while typing
+const filteredSources = computed(() => {
+  const q = String(props.searchQuery || '').trim().toLocaleLowerCase()
+  const sources = notebook.value?.sources || []
+  if (!q) return sources
+  return sources.filter(src => String(src?.name || '').toLocaleLowerCase().includes(q))
+})
 
 onMounted(async () => {
   try {

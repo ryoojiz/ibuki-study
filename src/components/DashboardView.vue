@@ -142,7 +142,7 @@ import { widgetService } from '../services/widget'
 
 const t = i18n.t
 const props = defineProps(['searchQuery', 'userName'])
-const emit = defineEmits(['selectNotebook', 'openChat'])
+const emit = defineEmits(['selectNotebook', 'openChat', 'openSubject'])
 
 const loading = ref(true)
 const notebooks = ref([])
@@ -174,19 +174,20 @@ const subjects = computed(() => {
   return [...new Set(notebooks.value.map(n => n.subject))]
 })
 
+const normalizedSearchQuery = computed(() => String(props.searchQuery || '').trim().toLocaleLowerCase())
+
 const filteredSubjects = computed(() => {
-  if (!props.searchQuery) return subjects.value
-  return subjects.value.filter(s => s.toLowerCase().includes(props.searchQuery.toLowerCase()))
+  const q = normalizedSearchQuery.value
+  if (!q) return subjects.value
+  return subjects.value.filter(subject => subject.toLocaleLowerCase().includes(q))
 })
 
 const filteredNotebooks = computed(() => {
-  if (!props.searchQuery) return notebooks.value
-  const q = props.searchQuery.toLowerCase()
-  return notebooks.value.filter(n => 
-    n.title.toLowerCase().includes(q) || 
-    n.subject.toLowerCase().includes(q) || 
-    n.material.toLowerCase().includes(q) || 
-    n.summary.toLowerCase().includes(q)
+  const q = normalizedSearchQuery.value
+  if (!q) return notebooks.value
+  return notebooks.value.filter(notebook =>
+    [notebook.title, notebook.subject, notebook.material, notebook.summary]
+      .some(value => String(value || '').toLocaleLowerCase().includes(q))
   )
 })
 

@@ -60,7 +60,15 @@
         </button>
         <div class="header-search">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-          <input v-model="searchQuery" type="text" :placeholder="t('app.searchPlaceholder')">
+          <input
+            ref="searchInput"
+            v-model="searchQuery"
+            type="search"
+            :placeholder="t('app.searchPlaceholder')"
+            @input="showSearchResults"
+            @keydown.esc="clearSearch"
+          >
+          <button v-if="searchQuery" class="header-search-clear" type="button" :aria-label="t('app.clearSearch')" :title="t('app.clearSearch')" @click="clearSearch">&times;</button>
         </div>
         <div class="user-profile-container">
           <div class="user-profile" @click="toggleProfileMenu">
@@ -86,8 +94,8 @@
             <div :key="currentView" style="width: 100%; height: 100%;">
              <DashboardView v-if="currentView === 'dashboard'" :searchQuery="searchQuery" :userName="userName" @selectNotebook="openNotebook" @openChat="handleDashboardOpenChat" @openSubject="openSubject" />
              <CreateNotebookView v-if="currentView === 'create'" @notebookCreated="setView('dashboard'); refreshSubjects()" />
-              <NotebookDetailView v-if="currentView === 'detail'" :key="'nb-' + activeNotebookId" :notebookId="activeNotebookId" :initialTab="pendingDetailTab" @openChat="openChat" @openFlashcards="openFlashcards" @back="setView('dashboard')" @notebookDeleted="handleNotebookDeleted" @openSubject="openSubject" />
-             <SubjectView v-if="currentView === 'subject'" :key="'subject-' + activeSubject" :subject="activeSubject" @selectNotebook="openNotebook" @openChat="openSubjectChat" />
+              <NotebookDetailView v-if="currentView === 'detail'" :key="'nb-' + activeNotebookId" :notebookId="activeNotebookId" :searchQuery="searchQuery" :initialTab="pendingDetailTab" @openChat="openChat" @openFlashcards="openFlashcards" @back="setView('dashboard')" @notebookDeleted="handleNotebookDeleted" @openSubject="openSubject" />
+             <SubjectView v-if="currentView === 'subject'" :key="'subject-' + activeSubject" :subject="activeSubject" :searchQuery="searchQuery" @selectNotebook="openNotebook" @openChat="openSubjectChat" />
              <!-- Keyed by chat scope so switching chats (global/subject/notebook) recreates the component and reloads its history -->
               <ChatView v-if="currentView === 'chat'" :key="(chatMode || 'notebook') + '|' + (activeSubject || '') + '|' + (activeNotebookId || '')" :notebookId="chatMode ? null : activeNotebookId" :subject="chatMode === 'subject' ? activeSubject : null" :globalMode="chatMode === 'global'" @back="handleChatBack" @openFlashcards="openFlashcards" @openQuiz="openNotebookQuiz" @openMaterial="handleGeneratedMaterial" />
              <MaterialGraphView v-if="currentView === 'graph'" @open-material="openNotebook" @open-chat="openChat" />
@@ -144,6 +152,7 @@ const activeNotebook = ref(null)
 // Tab to pre-select when opening the notebook detail view (e.g. 'quiz')
 const pendingDetailTab = ref(null)
 const searchQuery = ref('')
+const searchInput = ref(null)
 const userName = ref('')
 const isProfileMenuOpen = ref(false)
 const isSidebarOpen = ref(false)
@@ -152,6 +161,30 @@ const isMaterialManagerOpen = ref(false)
 const connectionStatus = ref('offline')
 const connectionStatusText = ref('Disconnected')
 const t = i18n.t
+
+// Views that show filterable notebook lists — the header search filters them in place.
+// From any other view, typing in the search jumps to the dashboard where results are shown.
+const searchableViews = ['dashboard', 'subject', 'detail']
+
+const showSearchResults = () => {
+  if (searchQuery.value.trim() && !searchableViews.includes(currentView.value)) {
+    setView('dashboard')
+  }
+}
+
+const clearSearch = () => {
+  searchQuery.value = ''
+  searchInput.value?.focus()
+}
+
+const handleSearchShortcut = (event) => {
+  const target = event.target
+  const isTyping = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable
+  if (event.key === '/' && !isTyping) {
+    event.preventDefault()
+    searchInput.value?.focus()
+  }
+}
 
 function isRecoveryUrl() {
   const query = new URLSearchParams(window.location.search)
@@ -437,10 +470,12 @@ onMounted(async () => {
   window.addEventListener('popstate', () => {
     handleInitialRoute()
   })
+  window.addEventListener('keydown', handleSearchShortcut)
 })
 
 onBeforeUnmount(() => {
   nativeOAuthListener?.remove()
+  window.removeEventListener('keydown', handleSearchShortcut)
 })
 
 const openFlashcards = async (id) => {

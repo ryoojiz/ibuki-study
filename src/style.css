@@ -1,9 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Noto+Sans+Javanese:wght@400;700&display=swap');
 
 /* --- Modern Theme Tokens --- */
 :root {
   --font-heading: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-body: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-javanese: 'Noto Sans Javanese', sans-serif;
 
   /* Colors */
   --bg-darker: #09090e;
@@ -297,13 +298,20 @@ body.auth-hidden .app-container {
 
 .header-search input {
   width: 100%;
-  padding: 0.6rem 1rem 0.6rem 2.5rem;
+  padding: 0.6rem 2.5rem 0.6rem 2.5rem;
   background-color: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--border-light);
   border-radius: 10px;
   color: white;
   font-size: 0.9rem;
   transition: all 0.3s ease;
+}
+
+/* Hide the native clear button of type="search" inputs — we render our own */
+.header-search input[type="search"]::-webkit-search-cancel-button,
+.header-search input[type="search"]::-webkit-search-decoration {
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .header-search input:focus {
@@ -323,6 +331,22 @@ body.auth-hidden .app-container {
   color: var(--text-muted);
 }
 
+.header-search-clear {
+  position: absolute;
+  right: 0.25rem;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 1.35rem;
+  line-height: 1;
+}
+
+.header-search-clear:hover {
+  color: var(--text-primary);
+}
 /* --- Views Layouts --- */
 /* The view container holds the main content area. Adding transitions for both padding and
    max‑width smooths the layout change when toggling fullscreen chat mode, preventing the
@@ -1431,6 +1455,14 @@ body.auth-hidden .app-container {
 }
 
 /* Page Transitions */
+/* Applied on <html> when the interface language is Javanese. Include form
+   controls and headings because they otherwise declare the default UI fonts. */
+html.font-javanese,
+html.font-javanese body,
+html.font-javanese body * {
+  font-family: var(--font-javanese) !important;
+}
+
 .page-enter-active,
 .page-leave-active {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
