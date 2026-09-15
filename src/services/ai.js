@@ -1,10 +1,12 @@
 import { citationsService } from './citations'
+
+const FIXED_VISION_MODEL = 'gemma-4-31b-it'
 export const aiService = {
   config: {
     apiKey: import.meta.env.VITE_AI_API_KEY,
     baseUrl: import.meta.env.VITE_AI_API_BASE_URL,
     chatModel: 'gemma-4-31b-it',
-    visionModel: 'gemma-4-31b-it',
+    visionModel: FIXED_VISION_MODEL,
     useDemoMode: false,
     language: 'English'
   },
@@ -13,7 +15,7 @@ export const aiService = {
     const saved = localStorage.getItem('ibuki_ai_config');
     if (saved) {
       try {
-        this.config = { ...this.config, ...JSON.parse(saved) };
+        this.config = { ...this.config, ...JSON.parse(saved), visionModel: FIXED_VISION_MODEL };
       } catch (e) {
         console.error('Failed to parse AI configuration:', e);
       }
@@ -21,7 +23,9 @@ export const aiService = {
   },
 
   saveConfig(newConfig) {
-    this.config = { ...this.config, ...newConfig };
+    // Text generation follows user settings. Vision is deliberately pinned so
+    // image analysis stays on the known multimodal model.
+    this.config = { ...this.config, ...newConfig, visionModel: FIXED_VISION_MODEL };
     localStorage.setItem('ibuki_ai_config', JSON.stringify(this.config));
   },
 

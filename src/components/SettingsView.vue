@@ -41,7 +41,7 @@
         <div class="settings-field">
           <label>{{ t('settings.model') }}</label>
           <select v-model="llm.model">
-            <option v-for="m in availableModels" :key="m" :value="m">{{ m }}</option>
+            <option v-for="model in availableModels" :key="model.id" :value="model.id">{{ model.name }}</option>
           </select>
         </div>
         <!-- Advanced accordion -->
@@ -178,10 +178,16 @@ const llm = ref({
 })
 const availableModels = computed(() => {
   if (llm.value.provider === 'Ibuki') {
-    return ['ibuki-base', 'ibuki-advanced']
+    return [
+      { id: 'gemma-4-31b-it', name: 'Ibuki Base' },
+      { id: 'gpt-oss:120b', name: 'Ibuki Advanced' }
+    ]
   }
   // OpenAI Compatible
-  return ['gpt-3.5-turbo', 'gpt-4']
+  return [
+    { id: 'gpt-3.5-turbo', name: 'gpt-3.5-turbo' },
+    { id: 'gpt-4', name: 'gpt-4' }
+  ]
 })
 
 // Appearance
@@ -241,6 +247,15 @@ const saveLLM = async () => {
   message.value = ''
   try {
     await dbService.updateProfile({ llm: llm.value })
+    const selectedModel = llm.value.provider === 'OpenAI Compatible'
+      ? (llm.value.textboxModel.trim() || llm.value.model)
+      : llm.value.model
+    aiService.saveConfig({
+      chatModel: selectedModel || aiService.config.chatModel,
+      ...(llm.value.provider === 'OpenAI Compatible'
+        ? { baseUrl: llm.value.baseUrl, apiKey: llm.value.apiKey }
+        : {})
+    })
     message.value = t('settings.llmSaved')
     messageType.value = 'success'
   } catch (e) {

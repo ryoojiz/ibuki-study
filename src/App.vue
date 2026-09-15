@@ -271,6 +271,23 @@ const onAuthenticated = async () => {
     try {
       const profile = await dbService.getProfile()
       userName.value = profile?.username || user.email.split('@')[0]
+      // Apply the saved text model on startup. Image/vision requests remain
+      // pinned inside aiService to gemma-4-31b-it.
+      if (profile?.llm) {
+        const llm = profile.llm
+        const selectedModel = llm.provider === 'OpenAI Compatible'
+          ? (llm.textboxModel?.trim() || llm.model)
+          : llm.model
+        if (selectedModel) {
+          aiService.saveConfig({
+            chatModel: selectedModel,
+            ...(llm.provider === 'OpenAI Compatible'
+              ? { baseUrl: llm.baseUrl, apiKey: llm.apiKey }
+              : {})
+          })
+        }
+      }
+
       // Apply localization settings from the profile
       if (profile?.localization) {
         if (profile.localization.interfaceLang) {
