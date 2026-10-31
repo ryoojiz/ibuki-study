@@ -718,7 +718,9 @@ const handleToolAction = async ({ tool, params, kind, sourceMessage }) => {
       subject: null,
       difficulty: params.difficulty || 'medium',
       focus: params.focus || 'general',
-      questions
+      questions,
+      mode: params.mode || 'standard',
+      timerSeconds: params.timerSeconds || 15
     });
   } else {
     throw new Error(`Unsupported tool: ${tool}`);

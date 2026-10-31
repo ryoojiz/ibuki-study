@@ -130,6 +130,32 @@
         </div>
       </template>
     </div>
+
+    <div class="section-header">
+      <h2>{{ t('dash.achievements') || 'Achievements' }}</h2>
+    </div>
+    <div class="badges-grid">
+      <template v-if="loading">
+        <div v-for="i in 4" :key="i" class="badge-card skeleton">
+          <div class="badge-icon skeleton-box"></div>
+          <div class="skeleton-text short"></div>
+        </div>
+      </template>
+      <template v-else>
+        <div v-for="badge in userBadges" :key="badge.id" class="badge-card earned">
+          <div class="badge-icon">{{ badge.icon }}</div>
+          <div class="badge-info">
+            <h3>{{ badge.name }}</h3>
+            <p>{{ badge.description }}</p>
+          </div>
+        </div>
+        <div v-if="userBadges.length === 0" class="empty-state">
+          <div class="empty-icon">🏆</div>
+          <h3>{{ t('dash.noBadges') || 'No badges yet' }}</h3>
+          <p>{{ t('dash.noBadgesDesc') || 'Start studying to earn your first achievement!' }}</p>
+        </div>
+      </template>
+    </div>
   </div>
 </template>
 
@@ -139,6 +165,7 @@ import { dbService } from '../services/db'
 import { authService } from '../services/auth'
 import { i18n } from '../services/i18n'
 import { widgetService } from '../services/widget'
+import { gamificationService } from '../services/gamification'
 
 const t = i18n.t
 const props = defineProps(['searchQuery', 'userName'])
@@ -148,6 +175,7 @@ const loading = ref(true)
 const notebooks = ref([])
 const totalChats = ref(0)
 const studyStreak = ref({ streak: 0, studiedToday: false })
+const userBadges = ref([])
 
 onMounted(async () => {
   await loadData()
@@ -155,13 +183,17 @@ onMounted(async () => {
 
 const loadData = async () => {
   try {
+    const user = await authService.getCurrentUser()
+    const userId = user?.id
     notebooks.value = await dbService.getAllNotebooks()
-    const [chats, streak] = await Promise.all([
+    const [chats, streak, badges] = await Promise.all([
       dbService.getChatHistory(),
-      dbService.getStudyStreak()
+      dbService.getStudyStreak(),
+      userId ? gamificationService.getUserBadges(userId) : Promise.resolve([])
     ])
     totalChats.value = chats.length
     studyStreak.value = streak
+    userBadges.value = badges
     await widgetService.sync(streak)
   } catch (e) {
     console.error('Failed to load dashboard data:', e)
@@ -212,5 +244,52 @@ const formatDate = (dateStr) => {
 .hero-content h1 {
   font-size: 2rem;
   margin-bottom: 0.5rem;
+}
+
+.badges-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.badge-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: var(--card-bg, #fff);
+  border-radius: 12px;
+  border: 1px solid var(--border-color, #eee);
+  transition: transform 0.2s;
+}
+
+.badge-card.earned {
+  border-color: #ffd700;
+  background: linear-gradient(135deg, #fff 0%, #fffdf0 100%);
+  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.1);
+}
+
+.badge-icon {
+  font-size: 2rem;
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8f9fa;
+  border-radius: 10px;
+}
+
+.badge-info h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--text-main, #333);
+}
+
+.badge-info p {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted, #666);
 }
 </style>

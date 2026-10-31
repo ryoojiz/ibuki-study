@@ -198,11 +198,95 @@ mark.cite-mark {
   margin-bottom: 0;
 }
 
-.message-content ul {
+.message-content ul,
+.message-content ol,
+.rendered-content ul,
+.rendered-content ol {
   margin: 0 0 0.6em;
   padding-left: 1.4em;
 }
 
-.message-content li {
+.message-content li,
+.rendered-content li {
   margin-bottom: 0.25em;
+}
+
+/* --- Markdown Tables (Tables in AI responses & rendered markdown) --- */
+.markdown-table-wrapper {
+  width: 100%;
+  margin: 0.85rem 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 10px;
+  border: 1px solid var(--border-light, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.markdown-table-wrapper table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.markdown-table-wrapper thead {
+  background: rgba(255, 255, 255, 0.06);
+  border-bottom: 2px solid var(--border-light, rgba(255, 255, 255, 0.15));
+}
+
+.markdown-table-wrapper th {
+  padding: 0.6rem 0.85rem;
+  font-weight: 700;
+  color: var(--text-primary, #ffffff);
+  white-space: nowrap;
+}
+
+.markdown-table-wrapper td {
+  padding: 0.55rem 0.85rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--text-secondary, #d1d5db);
+}
+
+.markdown-table-wrapper tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.markdown-table-wrapper tbody tr:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+/* Code block & inline code in markdown */
+.message-content pre,
+.rendered-content pre {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--border-light, rgba(255, 255, 255, 0.1));
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  overflow-x: auto;
+  margin: 0.75rem 0;
+}
+
+.message-content code,
+.rendered-content code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.85em;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.15em 0.35em;
+  border-radius: 4px;
+}
+
+.message-content pre code,
+.rendered-content pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.message-content blockquote,
+.rendered-content blockquote {
+  border-left: 3px solid var(--accent-primary, #8b5cf6);
+  margin: 0.75rem 0;
+  padding: 0.25rem 0 0.25rem 0.85rem;
+  color: var(--text-muted, #9ca3af);
+  font-style: italic;
 }

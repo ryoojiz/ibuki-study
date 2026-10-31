@@ -1,11 +1,11 @@
 import { citationsService } from './citations'
 
-const FIXED_VISION_MODEL = 'gemma-4-31b-it'
+const FIXED_VISION_MODEL = 'gpt-4o'
 export const aiService = {
   config: {
     apiKey: import.meta.env.VITE_AI_API_KEY,
     baseUrl: import.meta.env.VITE_AI_API_BASE_URL,
-    chatModel: 'gemma-4-31b-it',
+    chatModel: 'gpt-4o',
     visionModel: FIXED_VISION_MODEL,
     useDemoMode: false,
     language: 'English'
@@ -466,7 +466,7 @@ ${contextText}
 ---------------------
 Answer the student's questions accurately, comprehensively, and specifically based on this context. 
 If they ask questions outside this scope, politely answer but always tie it back to the subject/materials at hand.
-Use markdown for structure, math formulas ($...$ for inline, $$...$$ for block), and format key concepts in bold.
+Use markdown for structure (headings, tables for structured comparisons/summaries, lists), math formulas ($...$ for inline, $$...$$ for block), and format key concepts in bold.
 
 PRIVATE REASONING CONTRACT (mandatory):
 Start the response with exactly one <thinking> block, followed immediately by the user-facing answer. There must be exactly two thinking delimiters in the entire response: the opening delimiter at character one and its matching closing delimiter immediately before the final answer.

@@ -15,6 +15,19 @@
  */
 
 import katex from 'katex'
+import { marked } from 'marked'
+
+// Configure marked with custom table wrapping and safe HTML handling
+const markedRenderer = new marked.Renderer()
+const origTable = markedRenderer.table.bind(markedRenderer)
+markedRenderer.table = function(header, body) {
+  return '<div class="markdown-table-wrapper">' + origTable(header, body) + '</div>'
+}
+markedRenderer.html = function(html) {
+  const text = typeof html === 'object' && html !== null ? html.text : html
+  return (text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+marked.setOptions({ renderer: markedRenderer, gfm: true, breaks: true })
 
 // Newline / entity constants built from char codes so they are safe to
 // serialize through any channel (no bare escape sequences or entities here).
@@ -146,43 +159,13 @@ export const citationsService = {
       return '@@CITE' + (cites.length - 1) + '@@'
     })
 
-    // 3. Markdown transforms - applied per line, then reassembled with
-    //    paragraph (<p>) and line-break (<br>) structure.
-    const rawLines = html.split(NL)
-    const transformed = rawLines.map(line => {
-      let l = line
-      l = l.replace(/^### (.*)$/i, '<h3>$1</h3>')
-      l = l.replace(/^## (.*)$/i, '<h2>$1</h2>')
-      l = l.replace(/^# (.*)$/i, '<h1>$1</h1>')
-      l = l.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      l = l.replace(/\*(.*?)\*/g, '<em>$1</em>')
-      l = l.replace(/^\s*[-*] (.*)$/i, '<li>$1</li>')
-      l = l.replace(/^\s*\d+\. (.*)$/i, '<li>$1</li>')
-      return l
-    })
+    // 3. Normalize markdown table boundaries so markdown engines always recognize them
+    html = this.formatMarkdownTables(html)
 
-    const paragraphs = []
-    let buf = []
-    for (const line of transformed) {
-      if (line.trim() === '' && !line.includes('<h')) {
-        if (buf.length) {
-          paragraphs.push(buf.join('<br>'))
-          buf = []
-        }
-      } else {
-        buf.push(line)
-      }
-    }
-    if (buf.length) paragraphs.push(buf.join('<br>'))
+    // 4. Parse markdown with full GFM support (tables, lists, blockquotes, codeblocks, formatting)
+    html = marked.parse(html)
 
-    html = '<p>' + paragraphs.join('</p><p>') + '</p>'
-
-    // Wrap consecutive <li> runs in a single <ul>
-    html = html.replace(/<\/li>\s*(<br>\s*)+<li>/g, '</li><li>')
-    html = html.replace(/(?:<li>[\s\S]*?<\/li>)+/g, m => '<ul>' + m + '</ul>')
-    html = html.replace(/<\/ul>\s*<ul>/g, '')
-
-    // 4. Final substitutions: LaTeX, Thinking, Tools, and Citations
+    // 5. Final substitutions: LaTeX, Thinking, Tools, and Citations
     
     // Restore Thinking Blocks
     html = html.replace(/@@THINKING([\s\S]*?)@@/g, (_m, base64) => {
@@ -238,6 +221,39 @@ export const citationsService = {
     }))
 
     return { html, refs }
+  },
+
+  /**
+   * Normalize markdown table blocks by ensuring blank lines before and after
+   * table boundaries, so that markdown parsers consistently parse them as tables.
+   */
+  formatMarkdownTables(text) {
+    if (!text || !text.includes('|')) return text
+    const lines = text.split('\n')
+    const result = []
+    let i = 0
+    while (i < lines.length) {
+      const line = lines[i]
+      const isTableStart = /^\|.*\|$/.test(line.trim())
+      if (isTableStart && i + 1 < lines.length && /^\|[-:\s|]+\|$/.test(lines[i + 1].trim())) {
+        const tableLines = []
+        while (i < lines.length && /^\|.*\|$/.test(lines[i].trim())) {
+          tableLines.push(lines[i])
+          i++
+        }
+        if (result.length > 0 && result[result.length - 1].trim() !== '') {
+          result.push('')
+        }
+        result.push(tableLines.join('\n'))
+        if (i < lines.length && lines[i].trim() !== '') {
+          result.push('')
+        }
+      } else {
+        result.push(line)
+        i++
+      }
+    }
+    return result.join('\n')
   },
 
   /**
