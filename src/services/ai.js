@@ -1,11 +1,11 @@
 import { citationsService } from './citations'
 
-const FIXED_VISION_MODEL = 'gpt-4o'
+const FIXED_VISION_MODEL = 'laguna-xs-2.1'
 export const aiService = {
   config: {
     apiKey: import.meta.env.VITE_AI_API_KEY,
     baseUrl: import.meta.env.VITE_AI_API_BASE_URL,
-    chatModel: 'gpt-4o',
+    chatModel: 'laguna-xs-2.1',
     visionModel: FIXED_VISION_MODEL,
     useDemoMode: false,
     language: 'English'
