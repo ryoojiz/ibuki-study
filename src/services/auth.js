@@ -106,5 +106,16 @@ export const authService = {
     async getCurrentUser() {
         const { data: { user } } = await supabase.auth.getUser()
         return user
+    },
+
+    async isAdmin(userId) {
+        if (!userId) return false
+        const { data, error } = await supabase
+            .from('profiles')
+            .select('is_admin')
+            .eq('id', userId)
+            .single()
+        if (error && error.code !== 'PGRST116') throw error
+        return !!data?.is_admin
     }
 }
