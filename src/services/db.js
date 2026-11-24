@@ -1,5 +1,6 @@
 import { supabase } from './supabase'
 import { authService } from './auth'
+import { chargeNotebook, getEffectiveQuotaForUser, resetUsage, resetLimits, setLimits, changeUsage, listUsersForAdmin, setAdmin, sendPasswordResetEmail, deleteAccountUser } from './usage'
 
 export const dbService = {
   async getUserId() {
@@ -60,8 +61,16 @@ export const dbService = {
 
   async saveNotebook(notebook, originalFiles = []) {
     const userId = await this.getUserId()
-    
-    // ... (keep existing logic)
+    const files = Array.isArray(originalFiles) ? originalFiles : []
+
+    // (existing source build logic)
+    const sourcesWithUrls = (await Promise.all(
+      files.map(async (f) => {
+        const url = await this.uploadSource(userId, f)
+        return { name: f.name, type: f.type, url }
+      })
+    )).filter(Boolean)
+
     const { data, error } = await supabase
       .from('notebooks')
       .upsert({
@@ -79,12 +88,34 @@ export const dbService = {
       .single()
 
     if (error) throw error
-    
+
+    // Quota enforcement: creating a notebook costs notebook_cost tokens.
+    // Only charge on creation (no id => a new record).
+    if (!notebook.id) {
+      const { ok, error: qErr } = await chargeNotebook(userId, notebook.subject)
+      if (!ok) {
+        throw new Error(qErr || 'Notebook quota reached or tokens exceeded.')
+      }
+    }
+
     // Trigger badge check
     import('./gamification').then(m => m.gamificationService.checkAndAwardBadges(userId)).catch(console.error);
 
     return data
   },
+
+  // ---- quota / usage helpers (thin wrappers around src/services/usage.js) ----
+
+  async getQuotaForThisUser() { return getEffectiveQuotaForUser(await this.getUserId()) },
+  async getProfileQuota(userId) { return getEffectiveQuotaForUser(userId) || {} },
+  async resetUsage(userId) { return resetUsage(userId) },
+  async resetLimits(userId) { return resetLimits(userId) },
+  async changeLimits(userId, p) { return setLimits(userId, p) },
+  async changeUsage(userId, p) { return changeUsage(userId, p) },
+  async listAdmins() { return listUsersForAdmin() },
+  async setAdminFlag(userId, isAdmin) { return setAdmin(userId, !!isAdmin) },
+  async sendPasswordReset(email) { return sendPasswordResetEmail(email) },
+  async deleteAccount(userId) { return deleteAccountUser(userId) },
 
   async getAllNotebooks() {
     const userId = await this.getUserId()
